@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Açı Atölyesi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="CssJS/aciolcer.css">
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="brand-eyebrow">// Ölçü &amp; Kesim Aracı</div>
+      <h1>Açı Atölyesi</h1>
+      <div class="tagline">Parçanı ölç, açıyı bul — ya da bildiğin kenarlardan açıyı hesapla. Sonuç anında çizilir.</div>
+    </div>
+    <nav class="tabs">
+      <button data-tab="parca" class="active">Parça Açısı</button>
+      <button data-tab="ucgen">Üç Kenar</button>
+      <button data-tab="dik">Dik Üçgen</button>
+      <button data-tab="birlestir">Birleştir</button>
+    </nav>
+  </header>
+
+  <!-- ================= TAB 1: PARÇA AÇISI ================= -->
+  <div class="tabpanel active" id="tab-parca">
+    <div class="panel">
+      <h2>Parça Ölçüleri</h2>
+      <div class="sub">Üstten ve alttan ölçülen bir parçanın kesim açısını bul. Örnek: derinlik 10cm, üst 60cm, alt 52cm.</div>
+
+      <div class="field">
+        <label>Derinlik / Yükseklik (h)</label>
+        <input type="number" id="p-h" value="10" step="0.1" min="0.01">
+        <span class="unit">cm</span>
+      </div>
+      <div class="field">
+        <label>Üst Genişlik</label>
+        <input type="number" id="p-top" value="60" step="0.1" min="0">
+        <span class="unit">cm</span>
+      </div>
+      <div class="field">
+        <label>Alt Genişlik</label>
+        <input type="number" id="p-bottom" value="52" step="0.1" min="0">
+        <span class="unit">cm</span>
+      </div>
+
+      <div class="field">
+        <label>Kesim Şekli</label>
+        <div class="radio-row">
+          <label class="opt"><input type="radio" name="taper" value="sym" checked> İki kenar da açılı (simetrik)</label>
+          <label class="opt"><input type="radio" name="taper" value="single"> Tek kenar açılı, diğeri düz</label>
+        </div>
+      </div>
+
+      <div class="note">Simetrik seçiliyse, üst-alt farkı iki kenara eşit paylaştırılır (her kenar farkın yarısı kadar açılır). Tek kenar açılıysa, tüm fark tek kenara yüklenir.</div>
+      <div class="err" id="p-err"></div>
+    </div>
+
+    <div class="result-area">
+      <div class="gauge-card">
+        <svg id="p-gauge" viewBox="0 0 200 130" width="220"></svg>
+        <div class="readouts">
+          <div class="readout"><span class="rlabel">Dikeyden sapma (bevel açısı)</span><span class="rval" id="p-ang-vert">–</span></div>
+          <div class="readout"><span class="rlabel">Tabandan açı</span><span class="rval small" id="p-ang-horiz">–</span></div>
+          <div class="readout"><span class="rlabel">Açılı kenar uzunluğu</span><span class="rval small" id="p-slant">–</span></div>
+        </div>
+      </div>
+      <div class="draw-card">
+        <div class="draw-label">Teknik Çizim</div>
+        <svg id="p-drawing" viewBox="0 0 520 360"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TAB 2: ÜÇ KENARDAN AÇI ================= -->
+  <div class="tabpanel" id="tab-ucgen">
+    <div class="panel">
+      <h2>Üç Kenardan Açı</h2>
+      <div class="sub">Bir üçgenin üç kenar uzunluğunu bil, üç açısını da (kosinüs teoremi ile) hesapla.</div>
+
+      <div class="field"><label>Kenar a</label><input type="number" id="t-a" value="7" step="0.1" min="0.01"><span class="unit">cm</span></div>
+      <div class="field"><label>Kenar b</label><input type="number" id="t-b" value="9" step="0.1" min="0.01"><span class="unit">cm</span></div>
+      <div class="field"><label>Kenar c</label><input type="number" id="t-c" value="11" step="0.1" min="0.01"><span class="unit">cm</span></div>
+
+      <div class="note">A açısı a'nın karşısında, B açısı b'nin karşısında, C açısı c'nin karşısındadır.</div>
+      <div class="err" id="t-err"></div>
+    </div>
+
+    <div class="result-area">
+      <div class="gauge-card" style="flex-wrap:wrap;">
+        <div class="readouts" style="min-width:100%;">
+          <div class="readout"><span class="rlabel">Açı A (a kenarının karşısı)</span><span class="rval" id="t-A">–</span></div>
+          <div class="readout"><span class="rlabel">Açı B (b kenarının karşısı)</span><span class="rval" id="t-B">–</span></div>
+          <div class="readout"><span class="rlabel">Açı C (c kenarının karşısı)</span><span class="rval" id="t-C">–</span></div>
+        </div>
+      </div>
+      <div class="draw-card">
+        <div class="draw-label">Teknik Çizim</div>
+        <svg id="t-drawing" viewBox="0 0 520 360"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TAB 3: DİK ÜÇGEN ================= -->
+  <div class="tabpanel" id="tab-dik">
+    <div class="panel">
+      <h2>Dik Üçgenden Açı</h2>
+      <div class="sub">Karşı, komşu ve hipotenüsten herhangi ikisini gir, üçüncüsü boş kalsın — açıları hesaplayalım.</div>
+
+      <div class="field"><label>Karşı Kenar (a)</label><input type="number" id="d-a" value="4" step="0.1" min="0"><span class="unit">cm</span></div>
+      <div class="field"><label>Komşu Kenar (b)</label><input type="number" id="d-b" value="10" step="0.1" min="0"><span class="unit">cm</span></div>
+      <div class="field"><label>Hipotenüs (c)</label><input type="number" id="d-c" value="" step="0.1" min="0" placeholder="boş bırakılabilir"><span class="unit">cm</span></div>
+
+      <div class="note">Herhangi iki kenarı doldur, üçüncüsünü boş bırak — otomatik hesaplanır. Üçünü de doldurursan hepsi kullanılır.</div>
+      <div class="err" id="d-err"></div>
+    </div>
+
+    <div class="result-area">
+      <div class="gauge-card">
+        <svg id="d-gauge" viewBox="0 0 200 130" width="220"></svg>
+        <div class="readouts">
+          <div class="readout"><span class="rlabel">Açı (karşı kenara bakan)</span><span class="rval" id="d-theta">–</span></div>
+          <div class="readout"><span class="rlabel">Diğer dar açı</span><span class="rval small" id="d-comp">–</span></div>
+          <div class="readout"><span class="rlabel">Eksik kenar</span><span class="rval small" id="d-missing">–</span></div>
+        </div>
+      </div>
+      <div class="draw-card">
+        <div class="draw-label">Teknik Çizim</div>
+        <svg id="d-drawing" viewBox="0 0 520 360"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= TAB 4: BİRLEŞTİRME TEZGAHI ================= -->
+  <div class="tabpanel" id="tab-birlestir">
+    <div class="panel">
+      <h2>Parça Ekle</h2>
+      <div class="sub">Her parçayı Parça Açısı sekmesindeki gibi tanımla, tezgaha ekle. Sonra fareyle sürükle, tekerlekle (scroll) döndür.</div>
+
+      <div class="piece-form">
+        <div class="field"><label>Derinlik (h)</label><input type="number" id="b-h" value="10" step="0.1" min="0.01"></div>
+        <div class="field" id="b-top-wrap"><label>Üst</label><input type="number" id="b-top" value="30" step="0.1" min="0"></div>
+        <div class="field" id="b-bottom-wrap"><label>Alt</label><input type="number" id="b-bottom" value="24" step="0.1" min="0"></div>
+        <div class="field" id="b-tl-wrap" style="display:none;"><label>Sol Kenar — Üst</label><input type="number" id="b-tl" value="40" step="0.1"></div>
+        <div class="field" id="b-bl-wrap" style="display:none;"><label>Sol Kenar — Alt</label><input type="number" id="b-bl" value="35" step="0.1"></div>
+        <div class="field" id="b-tr-wrap" style="display:none;"><label>Sağ Kenar — Üst</label><input type="number" id="b-tr" value="35" step="0.1"></div>
+        <div class="field" id="b-br-wrap" style="display:none;"><label>Sağ Kenar — Alt</label><input type="number" id="b-br" value="40" step="0.1"></div>
+        <div class="field full" id="b-diff-note" style="display:none;">
+          <div class="note" style="margin:0;">Parçanın orta çizgisine göre her köşenin ne kadar açıkta olduğunu ölç: sol kenarın üst ve alt ucu ayrı ayrı, sağ kenarın üst ve alt ucu ayrı ayrı. Böylece üst ve alt kenarların birbirine göre kaymış (paralelkenar gibi) olduğu parçaları da tanımlayabilirsin — sol 40/35, sağ 35/40 gibi.</div>
+        </div>
+        <div class="field full">
+          <label>Kesim</label>
+          <select id="b-mode" style="width:100%;background:var(--paper);color:var(--ink);border:1px solid var(--paper-line);border-radius:8px;padding:10px 8px;font-family:var(--font-body);font-size:13px;">
+            <option value="sym">İki kenar eşit açılı (simetrik)</option>
+            <option value="single">Tek kenar açılı, diğeri düz</option>
+            <option value="diff">İki kenar farklı açıda</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" id="b-add" style="flex:1;">+ Parça Ekle</button>
+        <button class="btn ghost" id="b-cancel-edit" style="display:none;width:auto;flex-shrink:0;">İptal</button>
+      </div>
+      <div class="err" id="b-err"></div>
+
+      <div class="piece-list" id="b-list"></div>
+
+      <div class="ref-tool">
+        <h2 style="font-size:13px;margin-bottom:8px;">Referansa Göre Açı Ayarla</h2>
+        <div class="piece-form">
+          <div class="field full">
+            <label>Referans</label>
+            <select id="ref-piece"></select>
+          </div>
+          <div class="field"><label>Hedef Parça</label><select id="ref-target"></select></div>
+          <div class="field"><label>Fark (derece)</label><input type="number" id="ref-diff" value="35" step="0.5"></div>
+        </div>
+        <button class="btn" id="ref-apply">🎯 Bu Açıya Döndür</button>
+        <div class="note" id="ref-info" style="margin-top:10px;display:none;"></div>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-muted);margin-top:14px;cursor:pointer;">
+        <input type="checkbox" id="snap-toggle" checked style="accent-color:var(--copper);width:16px;height:16px;">
+        Otomatik yapışma + birlikte taşıma (kapatırsan her parça tek başına, bağımsız hareket eder)
+      </label>
+
+      <div class="note" style="margin-top:10px;">Sürükle = taşı. Parçanın üstündeyken tekerlek = döndür (listedeki oklarla ya da satırdaki açı kutusuna yazarak da olur). Boş alanda tekerlek = yakınlaştır, boş alanı sürükle = kaydır. Parçaya <b>çift tıkla</b> = düzenleme formu direkt o parça için açılır. <b>🔒 Kilitle</b> = parça yerinde sabitlenir, sürüklenip döndürülemez. Sadece <b>sol/sağ (açılı) kenarlar</b> birbirine "tutar" — üst/alt kenarlar eşleşmeye dahil edilmez.</div>
+    </div>
+
+    <div class="result-area">
+      <div class="canvas-wrap">
+        <div class="zoom-tools">
+          <button id="b-zoom-out" title="Uzaklaştır">−</button>
+          <button id="b-zoom-reset" title="Görünümü sıfırla">⤢</button>
+          <button id="b-zoom-in" title="Yakınlaştır">+</button>
+        </div>
+        <svg id="b-canvas" viewBox="0 0 900 640"><g id="b-viewport"></g></svg>
+      </div>
+      <div class="legend">
+        <span><span class="dot" style="background:#3f8f52;"></span> Tutuyor (kenarlar aynı çizgide)</span>
+        <span><span class="dot" style="background:#c17f3f;"></span> Yakın, fark var</span>
+        <span style="margin-left:auto;"><button class="btn ghost" id="b-clear" style="width:auto;padding:6px 12px;">Tümünü Temizle</button></span>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="CssJS/aciolcer.js"></script>
+</body>
+</html>

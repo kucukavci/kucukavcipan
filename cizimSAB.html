@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>İmalat ve İskelet Çizim Aracı (Kalınlık + Açı)</title>
+    <link rel="stylesheet" href="CssJS/cizim.css">
+</head>
+<body>
+
+    <div id="properties-panel">
+        <div class="input-group">
+            <label>Eksen Uzunluğu (cm):</label>
+            <input type="number" step="0.1" id="input-length">
+        </div>
+        <div class="input-group">
+            <label>Eğimi (Derece):</label>
+            <input type="number" id="input-angle">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="input-group">
+            <label>Profil Kalınlığı (cm):</label>
+            <input type="number" step="0.1" id="input-thickness" value="4">
+        </div>
+        <div class="input-group">
+            <label>Başlangıç Kesimi (°):</label>
+            <input type="number" id="input-cut1" value="0" title="0° Düz kesimdir. 45° gönye kesimidir.">
+        </div>
+        <div class="input-group">
+            <label>Bitiş Kesimi (°):</label>
+            <input type="number" id="input-cut2" value="0">
+        </div>
+
+        <div id="panel-actions" style="display:flex; gap:6px; margin-top:5px;">
+            <button id="btn-apply">Uygula</button>
+            <button id="btn-delete" title="Seçili parçayı sil">🗑</button>
+        </div>
+    </div>
+
+    <div id="list-panel">
+        <h3>Malzeme Listesi</h3>
+        <div id="list-content"></div>
+        <div class="divider"></div>
+        <div id="list-total"></div>
+    </div>
+
+    <div id="toolbar">
+        <button id="btn-draw" class="mode-btn active">✏️ Çiz</button>
+        <button id="btn-move" class="mode-btn">✋ Seç/Taşı</button>
+        <button id="btn-pan" class="mode-btn">🖐 Kaydır</button>
+        <button id="btn-undo">Geri</button>
+        <button id="btn-clear">Temizle</button>
+        <button id="btn-zoom-out" title="Uzaklaştır">➖</button>
+        <span id="zoom-indicator" title="Görünümü sıfırlamak için tıklayın">100%</span>
+        <button id="btn-zoom-in" title="Yakınlaştır">➕</button>
+        <button id="btn-list" class="toggle-btn">📋 Liste</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+   <script src="CssJS/cizim.js"></script>
+</body>
+</html>

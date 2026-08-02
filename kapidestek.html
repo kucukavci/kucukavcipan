@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Çapraz Destek Hesaplayıcı — Atölye Kesim Föyü</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="CssJS/kapi.css">
+
+</head>
+<body>
+
+<header>
+  <h1>Çapraz Destek Hesaplayıcı</h1>
+  <p>Ahşap kapı iskeleti için X ya da Z destek — kesim uzunluğu, köşe açısı ve orta geçme föyü</p>
+</header>
+
+<div class="wrap">
+
+  <div class="panel">
+    <div class="panel-title">Ölçüler</div>
+    <form onsubmit="return false;">
+
+      <div class="step"><div class="num">1</div><div class="txt">Destek Tipi</div></div>
+      <div class="field">
+        <div class="toggle">
+          <button type="button" id="btnX" class="active" onclick="setBrace('X')">X — Çift Çapraz</button>
+          <button type="button" id="btnZ" onclick="setBrace('Z')">Z — Tek Çapraz</button>
+        </div>
+      </div>
+
+      <div class="step"><div class="num">2</div><div class="txt">Çerçevenin Derinliği</div></div>
+      <div class="field">
+        <label for="frameW">Çerçeve Ahşabının Derinliği (kalınlığı) — cm</label>
+        <input type="number" id="frameW" value="10" min="0" oninput="calc()">
+        <div class="hint">Dikmelerin (yan) kalınlığı. Yükseklikten bu payı 2 kez (üst+alt) düşülür; genişlik zaten kirişin kendi ölçüsü olduğu için ondan düşülmez.</div>
+      </div>
+
+      <div class="step"><div class="num">3</div><div class="txt">Kapının Ölçüsü</div></div>
+      <div class="field">
+        <label for="doorH">Yükseklik — cm</label>
+        <input type="number" id="doorH" value="200" min="1" oninput="calc()">
+        <div class="hint">Dikmelerin (sol/sağ) tam boyu — dış ölçü. Çerçeve derinliği kadarı üstten/alttan otomatik düşülür.</div>
+      </div>
+      <div class="field">
+        <label for="doorW">Genişlik (en) — cm</label>
+        <input type="number" id="doorW" value="100" min="1" oninput="calc()">
+        <div class="hint">Üst/alt kirişin kendi uzunluğu (dikmelerin arasına oturan parça). Bu zaten iç boşluk genişliğidir, ekstra düşülmez.</div>
+      </div>
+
+      <div class="step"><div class="num">4</div><div class="txt">Destek Ahşabının Derinliği</div></div>
+      <div class="field">
+        <label for="battenT">Destek Ahşabının Derinliği (kalınlığı) — cm</label>
+        <input type="number" id="battenT" value="10" min="1" oninput="calc()">
+        <div class="hint">Kare kesit ahşap varsayılır (en = derinlik). Farklıysa aşağıdan düzeltin.</div>
+      </div>
+      <div class="field">
+        <label for="battenB">Destek Ahşabının Görünen Eni — cm <span style="color:#8a8073">(opsiyonel)</span></label>
+        <input type="number" id="battenB" value="10" min="1" oninput="calc()">
+      </div>
+
+    </form>
+    <div class="note" id="modeNote"></div>
+  </div>
+
+  <div class="panel stage">
+    <div class="panel-title">Kesim Föyü</div>
+    <div class="drawing"><svg id="svgOut" viewBox="0 0 560 480" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="legend">
+      <span><i style="background:linear-gradient(135deg,#e0b378,#845428)"></i>Çerçeve (iskelet)</span>
+      <span><i style="background:linear-gradient(135deg,#a85a35,#571f11)"></i>Destek çıtası 1</span>
+      <span><i style="background:linear-gradient(135deg,#8f4a2c,#48190e)"></i>Destek çıtası 2</span>
+      <span><i style="background:#1f4e79"></i>Kesim açısı</span>
+      <span><i style="background:#5a5a58; border-radius:50%;"></i>Bağlantı noktası</span>
+    </div>
+    <div class="results" id="results"></div>
+  </div>
+
+</div>
+
+<footer>
+  v4 — gerçekçi ahşap damarı, ayrı çerçeve kirişleri, vida detayları ve zemin gölgesi ile geliştirilmiş görsel. Hesaplama mantığı v3 ile aynıdır.
+</footer>
+
+<script src="CssJS/kapi.js"></script>
+</body>
+</html>

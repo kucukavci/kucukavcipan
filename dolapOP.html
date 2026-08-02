@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eğimli Duvar Parça Planlayıcı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="CssJS/dolap.css">
+
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div>
+      <h1>Eğimli Duvar Parça Planlayıcı</h1>
+      <div class="sub">Eğimli bir duvar/tavana göre yerleştireceğin her dikey parçanın <b>yüksekliğini</b> ve tüm parçalar için ortak olan <b>üst kesim açısını</b> hesaplar. Parçaları eşit dağıtabilir veya konumlarını elle girebilirsin.</div>
+    </div>
+    <div class="badge">cm cinsinden ölçüm</div>
+  </header>
+
+  <div class="layout">
+    <section class="panel inputs">
+      <h2>Duvar Ölçüleri</h2>
+
+      <label>
+        <span class="lbl">Duvar Uzunluğu</span>
+        <input type="number" id="wallLength" step="0.1" value="350">
+      </label>
+
+      <label>
+        <span class="lbl">Sol Yükseklik</span>
+        <input type="number" id="leftHeight" step="0.1" value="80.8">
+      </label>
+
+      <label>
+        <span class="lbl">Sağ Yükseklik</span>
+        <input type="number" id="rightHeight" step="0.1" value="54">
+        <span class="hint">Eğim, sol yükseklikten sağ yüksekliğe doğru düz bir çizgi kabul edilir.</span>
+      </label>
+
+      <label>
+        <span class="lbl">Parça Kalınlığı</span>
+        <input type="number" id="thickness" step="0.1" value="1.8">
+        <span class="hint">Sadece parçaların konumlanması ve çizimde çakışmaması için kullanılır — yükseklik hesabını değiştirmez.</span>
+      </label>
+
+      <div class="divider"></div>
+
+      <h2 style="margin-bottom:10px;">Parça Konumları</h2>
+      <div class="autofill-row">
+        <label><span class="lbl">Kaç parça?</span><input type="number" id="autoCount" min="1" step="1" value="6"></label>
+        <button class="btn ghost small" id="autoFillBtn" style="height:34px;">Eşit Dağıt</button>
+      </div>
+      <span class="hint" style="display:block;margin-bottom:10px;">Duvar boyunca eşit aralıklarla yerleştirir. Sonrasında aşağıdaki listeden her parçayı istediğin konuma taşıyabilir, silebilir veya yeni parça ekleyebilirsin.</span>
+
+      <div class="pos-list" id="posList"></div>
+      <button class="btn ghost small" id="addRowBtn">+ Parça Ekle</button>
+
+      <div id="errorBox" class="error hidden"></div>
+      <div id="warnBox" class="warn hidden"></div>
+    </section>
+
+    <section class="panel summary">
+      <h2>Ortak Kesim Açısı</h2>
+      <div class="angle-hero">
+        <div class="num" id="angleNum">–<span class="deg">°</span></div>
+        <div class="txt" id="angleTxt"></div>
+      </div>
+      <div class="summary-grid" id="summaryGrid"></div>
+    </section>
+  </div>
+
+  <section class="panel drawing" style="margin-bottom:16px;">
+    <h2>Görsel</h2>
+    <div class="drawing-wrap"><div id="drawingContainer"></div></div>
+    <div class="legend">
+      <span class="li"><span class="sw" style="background:var(--wood);"></span> Parça konumu</span>
+      <span class="li"><span class="sw" style="background:transparent;border:1px dashed var(--cyan);"></span> Duvar eğim çizgisi</span>
+      <span class="li"><span class="sw" style="background:var(--orange);border-radius:50%;"></span> Kesim yüksekliği</span>
+    </div>
+  </section>
+
+  <section class="panel tables">
+    <h2>Kesim Listesi</h2>
+    <div class="table-scroll">
+      <table id="pieceTable">
+        <thead><tr><th>Parça No</th><th>Konum (X)</th><th>Yükseklik</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      Her parçayı kendi konumunda belirtilen <b>yüksekliğe</b> kes, üst kenarını yukarıdaki <b>ortak açıyla</b> eğimli kes — tüm parçalar için açı aynıdır, çünkü duvarın eğimi tek bir düz çizgidir.
+    </div>
+
+    <h2 style="margin-top:22px;">Bölme Aralıkları (Boşluklar)</h2>
+    <div class="table-scroll">
+      <table id="gapTable">
+        <thead><tr><th>Bölme</th><th>Başlangıç</th><th>Bitiş</th><th>Boş Ölçü</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="note-box">
+      Bu ölçüler, parça kalınlığı düşülmüş <b>net boşluk</b> değerleridir — yani o bölmeye sığacak gerçek iç ölçüdür (raf, kapak vb. bu ölçüye göre kesilir).
+    </div>
+  </section>
+
+  <footer>Tüm ölçüler cm — açı derece cinsindendir · dahili kullanım için oluşturulmuştur</footer>
+</div>
+<script src="CssJS/dolap.js"></script>
+</body>
+</html>

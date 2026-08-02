@@ -1,0 +1,266 @@
+html, body {
+            height: 100%;
+            overscroll-behavior: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #f4f4f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            background: #ffffff;
+            touch-action: none;
+            cursor: crosshair;
+        }
+
+        #toolbar {
+            position: fixed;
+            bottom: 20px;
+            bottom: calc(20px + env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 100;
+            white-space: nowrap;
+            max-width: 96vw;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        #toolbar::-webkit-scrollbar { height: 0px; }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 20px;
+            background: #2b2d42;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: transform 0.1s, background 0.2s;
+            flex-shrink: 0;
+        }
+
+        button:active { transform: scale(0.95); }
+        .mode-btn.active { background: #4361ee; box-shadow: 0 0 8px #4361ee; }
+        .toggle-btn.active { background: #4361ee; box-shadow: 0 0 8px #4361ee; }
+        #btn-undo { background: #8d99ae; }
+        #btn-clear { background: #ef233c; }
+        #btn-zoom-in, #btn-zoom-out { background: #4cc9f0; color: #2b2d42; padding: 10px 13px; }
+
+        #zoom-indicator {
+            min-width: 44px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2b2d42;
+            cursor: pointer;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        /* Gelişmiş Özellikler Paneli */
+        #properties-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 100;
+            flex-direction: column;
+            gap: 8px;
+            width: 170px;
+        }
+        #properties-panel.panel-visible { display: flex; }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .input-group label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #2b2d42;
+            text-transform: uppercase;
+        }
+
+        .input-group input {
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #f8f9fa;
+        }
+
+        .divider {
+            height: 1px;
+            background: #dee2e6;
+            margin: 5px 0;
+        }
+
+        #btn-apply {
+            background: #4cc9f0;
+            color: #2b2d42;
+            margin-top: 0;
+            flex: 2;
+        }
+
+        #btn-delete {
+            background: #ef233c;
+            margin-top: 0;
+            flex: 1;
+        }
+
+        /* Malzeme Listesi Paneli */
+        #list-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 100;
+            width: 230px;
+            max-height: 70vh;
+        }
+
+        #list-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: #2b2d42;
+            text-transform: uppercase;
+        }
+
+        #list-content {
+            max-height: 45vh;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .list-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 6px 4px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            color: #2b2d42;
+        }
+        .list-row:hover { background: #f8f9fa; }
+        .list-row-active { background: #fff0f0; }
+        .list-row-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .list-row-main { font-size: 12px; }
+        .list-row-sub { font-size: 10.5px; color: #8d99ae; }
+        .list-del {
+            color: #ef233c;
+            font-weight: bold;
+            padding: 0 6px;
+            cursor: pointer;
+        }
+
+        #list-total {
+            font-size: 12px;
+            font-weight: bold;
+            color: #2b2d42;
+            margin-top: 6px;
+        }
+
+        #list-empty {
+            color: #8d99ae;
+            padding: 10px 0;
+            text-align: center;
+        }
+
+        /* ===== MOBİL DÜZENİ ===== */
+        @media (max-width: 640px) {
+            /* Toolbar: eski tek satır + yatay kaydırma haline geri döndü, sadece biraz küçültüldü */
+            #toolbar {
+                bottom: 10px;
+                bottom: calc(10px + env(safe-area-inset-bottom));
+                max-width: 96vw;
+                padding: 8px 10px;
+                gap: 6px;
+            }
+            #toolbar button {
+                padding: 8px 11px;
+                font-size: 12.5px;
+            }
+            #zoom-indicator {
+                font-size: 12px;
+                min-width: 36px;
+            }
+
+            /* Özellikler paneli: küçük kutularla 2 sütun, taşma olmasın diye min-width:0 + border-box şart */
+            #properties-panel {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                max-width: calc(100vw - 20px);
+                max-height: 75vh;
+                overflow-y: auto;
+                column-gap: 8px;
+                row-gap: 6px;
+                padding: 12px;
+                box-sizing: border-box;
+            }
+            #properties-panel.panel-visible {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            }
+            #properties-panel .input-group {
+                min-width: 0;
+            }
+            #properties-panel .input-group label {
+                font-size: 10px;
+            }
+            #properties-panel .input-group input {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 5px 6px;
+                font-size: 13px;
+                min-width: 0;
+            }
+            #properties-panel .divider {
+                grid-column: 1 / -1;
+                margin: 2px 0;
+            }
+            #panel-actions {
+                grid-column: 1 / -1;
+            }
+            #panel-actions button {
+                min-width: 0;
+            }
+
+            #list-panel {
+                top: 10px;
+                left: 10px;
+                right: 10px;
+                width: auto;
+                max-width: calc(100vw - 20px);
+                max-height: 60vh;
+                box-sizing: border-box;
+            }
+        }

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Parke Yerleşim</title>
+  <link rel="stylesheet" href="CssJS/parke.css">
+</head>
+<body>
+  <h2>Parke Yerleşim Hesaplama</h2>
+
+  <div class="panel">
+    <div class="form-group"><label>Oda Genişliği (cm):</label><input type="number" id="roomWidth" placeholder="Örn: 385" value="385" /></div>
+    <div class="form-group"><label>Oda Yüksekliği (cm):</label><input type="number" id="roomHeight" placeholder="Örn: 200" value="200" /></div>
+    <div class="form-group"><label>Parke Uzunluğu (cm):</label><input type="number" id="tileLength" placeholder="Örn: 120" value="120" /></div>
+    <div class="form-group"><label>Parke Genişliği (cm):</label><input type="number" id="tileHeight" placeholder="Örn: 20" value="20" /></div>
+    <div class="form-group"><label>Duvar Boşluğu (cm):</label><input type="number" id="margin" placeholder="Örn: 1" value="1" /></div>
+    <div class="form-group"><label>Testere Payı (cm):</label><input type="number" id="cutLoss" placeholder="Örn: 0.3" value="0.3" step="0.1" /></div>
+
+    <div class="form-group">
+      <label>Minimum Parke Uzunluğu (cm):</label>
+      <input type="number" id="minLength" placeholder="Örn: 40" value="5" />
+      <div class="hint">Bir artık parçanın tekrar kullanılabilmesi için en az bu uzunlukta olması gerekir; altındaysa fire sayılır.</div>
+    </div>
+    <div class="form-group">
+      <label>Minimum Parke Genişliği (cm):</label>
+      <input type="number" id="minWidth" placeholder="Örn: 8" value="0" />
+      <div class="hint">Oda sonunda kalan şerit bu genişlikten dar ise döşenemez ve boşluk olarak işaretlenir.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Serim Yönü:</label>
+      <select id="pattern">
+        <option value="duz">Düz</option>
+        <option value="yatay">Yatay</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="drawFloor()">Parkeleri Yerleştir</button>
+    <button onclick="downloadImage()">PNG Olarak Kaydet</button>
+    <button onclick="downloadPDF()">📄 PDF Olarak Kaydet</button>
+    <button class="secondary" onclick="toggleCostSection()">💰 Malzeme ve Maliyet Hesabı</button>
+  </div>
+
+  <div id="errorBox" class="error-box" style="display:none;"></div>
+
+  <div id="costSection" class="cost-section" style="display:none;">
+    <h3>Malzeme ve Maliyet Hesabı</h3>
+    <div class="form-group"><label>Kutu Fiyatı (₺):</label><input type="number" id="boxPrice" placeholder="Örn: 450" /></div>
+    <div class="form-group"><label>Kutudaki Alan (m²):</label><input type="number" id="boxCoverage" placeholder="Örn: 2.4" step="0.01" /></div>
+    <button onclick="calculateCost()">Hesapla</button>
+    <div id="costResult"></div>
+  </div>
+
+  <div class="toolbar">
+    <button class="secondary" onclick="zoomIn()">➕ Yakınlaştır</button>
+    <button class="secondary" onclick="zoomOut()">➖ Uzaklaştır</button>
+    <button class="secondary" onclick="fitToScreen()">🔳 Sığdır</button>
+  </div>
+
+  <div class="canvas-wrapper" id="canvasWrapper">
+    <canvas id="canvas"></canvas>
+  </div>
+  <div class="legend">
+    <span><i class="swatch" style="background:linear-gradient(#c69a63,#a87b45);border:1px solid #6b4423;"></i>Tam parke</span>
+    <span><i class="swatch" style="background:linear-gradient(#e8c894,#d1a565);border:1px dashed #8a5a2b;"></i>Kesilmiş parça</span>
+    <span><i class="swatch" style="background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2 4px,#dcdcdc 4px,#dcdcdc 8px);border:1px dashed #b23b3b;"></i>Döşenemeyen boşluk</span>
+  </div>
+  <div id="tooltip"></div>
+  <div id="stats"></div>
+  <script src="CssJS/parke.js"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</body>
+</html>

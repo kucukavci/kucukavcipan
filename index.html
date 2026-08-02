@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Kontrol Paneli</title>
+<style>
+  :root{
+    --bg-0:#16181a;
+    --bg-1:#1f2224;
+    --plate:#26292c;
+    --plate-edge:#33373a;
+    --text-0:#eef0f1;
+    --text-1:#9aa0a6;
+    --led-off:#3a3d40;
+
+    --w1:#e8a33d; /* amber   */
+    --w2:#4fb3a9; /* teal    */
+    --w3:#d1636b; /* rose    */
+    --w4:#6b8cae; /* slate blue */
+    --w5:#9bc53d; /* lime    */
+    --w6:#8c7ae6; /* violet  */
+
+    --radius:18px;
+    --gap:18px;
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 15% -10%, #1d2022 0%, var(--bg-0) 55%),
+      var(--bg-0);
+    color:var(--text-0);
+    font-family:"Inter","Segoe UI",system-ui,sans-serif;
+    overflow-x:hidden;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:22px clamp(16px,4vw,40px) 6px;
+    gap:16px;
+  }
+  .brand{
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+  }
+  .brand .mark{
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:13px;
+    letter-spacing:.14em;
+    color:var(--w2);
+    border:1px solid var(--plate-edge);
+    padding:3px 8px;
+    border-radius:6px;
+    background:var(--bg-1);
+  }
+  .brand h1{
+    font-size:clamp(20px,2.6vw,26px);
+    margin:0;
+    font-weight:700;
+    letter-spacing:-.01em;
+  }
+  .status{
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:12px;
+    color:var(--text-1);
+    display:flex;
+    align-items:center;
+    gap:8px;
+    white-space:nowrap;
+  }
+  .status .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--w5);
+    box-shadow:0 0 8px var(--w5);
+  }
+
+  /* ---------- Grid of switch-plates ---------- */
+  .rail{
+    padding:18px clamp(16px,4vw,40px) 40px;
+  }
+  .rail-label{
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:11px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--text-1);
+    margin:14px 2px 12px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+    gap:var(--gap);
+  }
+
+  .plate{
+    --accent:var(--w1);
+    position:relative;
+    background:linear-gradient(160deg,var(--plate) 0%, #202325 100%);
+    border:1px solid var(--plate-edge);
+    border-radius:var(--radius);
+    padding:20px 18px 18px;
+    min-height:150px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    cursor:pointer;
+    text-align:left;
+    color:inherit;
+    font:inherit;
+    -webkit-user-select:none;
+    user-select:none;
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+    box-shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 10px 20px -14px rgba(0,0,0,.6);
+  }
+  .plate:active{ transform:scale(.97); }
+  @media (hover:hover){
+    .plate:hover{
+      border-color:var(--accent);
+      box-shadow:0 0 0 1px var(--accent) inset, 0 14px 26px -16px rgba(0,0,0,.7);
+      transform:translateY(-2px);
+    }
+    .plate:hover .led{ background:var(--accent); box-shadow:0 0 10px var(--accent); }
+    .plate:hover .toggle{ transform:rotate(-14deg); border-color:var(--accent); }
+    .plate:hover .toggle::after{ background:var(--accent); }
+  }
+
+  .plate-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+  }
+  .led{
+    width:9px;height:9px;border-radius:50%;
+    background:var(--led-off);
+    margin-top:6px;
+    transition:background .16s ease, box-shadow .16s ease;
+    flex:none;
+  }
+  .toggle{
+    width:34px;height:20px;
+    border-radius:20px;
+    border:1.5px solid var(--plate-edge);
+    position:relative;
+    transition:transform .18s ease, border-color .18s ease;
+    flex:none;
+  }
+  .toggle::after{
+    content:"";
+    position:absolute;
+    top:2px;left:2px;
+    width:14px;height:14px;
+    border-radius:50%;
+    background:var(--text-1);
+    transition:background .16s ease;
+  }
+
+  .plate-label{
+    margin-top:16px;
+  }
+  .plate-label .index{
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    font-size:11px;
+    color:var(--accent);
+    letter-spacing:.08em;
+    display:block;
+    margin-bottom:4px;
+  }
+  .plate-label h3{
+    margin:0 0 4px;
+    font-size:16px;
+    font-weight:650;
+    letter-spacing:-.01em;
+  }
+  .plate-label p{
+    margin:0;
+    font-size:12.5px;
+    color:var(--text-1);
+    line-height:1.4;
+  }
+
+  .plate.p1{--accent:var(--w1);} .plate.p2{--accent:var(--w2);}
+  .plate.p3{--accent:var(--w3);} .plate.p4{--accent:var(--w4);}
+  .plate.p5{--accent:var(--w5);} .plate.p6{--accent:var(--w6);}
+
+  /* ---------- Full screen viewer ---------- */
+  .viewer{
+    position:fixed;
+    inset:0;
+    background:var(--bg-0);
+    display:flex;
+    flex-direction:column;
+    transform:translateY(100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:50;
+  }
+  .viewer.open{ transform:translateY(0); }
+
+  .viewer-bar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;
+    background:var(--bg-1);
+    border-bottom:1px solid var(--plate-edge);
+    flex:none;
+  }
+  .back-btn{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:var(--plate);
+    border:1px solid var(--plate-edge);
+    color:var(--text-0);
+    border-radius:12px;
+    padding:10px 16px;
+    font-size:14px;
+    font-weight:600;
+    min-height:44px;
+    cursor:pointer;
+  }
+  .back-btn:active{ transform:scale(.96); }
+  .viewer-title{
+    font-size:14px;
+    color:var(--text-1);
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    letter-spacing:.02em;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .viewer-frame-wrap{
+    flex:1;
+    position:relative;
+    background:#0e0f10;
+  }
+  iframe.app-frame{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    border:0;
+    background:#fff;
+  }
+
+  footer.note{
+    padding:0 clamp(16px,4vw,40px) 30px;
+    color:var(--text-1);
+    font-size:11.5px;
+    font-family:"JetBrains Mono",ui-monospace,monospace;
+    max-width:640px;
+  }
+
+  @media (max-width:420px){
+    .grid{ grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); }
+    .plate{ min-height:130px; padding:16px 14px; }
+  }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">PANEL</span>
+      <h1>Kontrol Paneli</h1>
+    </div>
+    <div class="status"><span class="dot"></span>6 modül hazır</div>
+  </div>
+
+  <div class="rail">
+    <div class="rail-label">Modüller</div>
+    <div class="grid" id="grid"></div>
+    <footer class="note">
+
+    </footer>
+  </div>
+
+  <div class="viewer" id="viewer">
+    <div class="viewer-bar">
+      <button class="back-btn" id="backBtn" aria-label="Panele dön">
+        <span>←</span><span>Panel</span>
+      </button>
+      <span class="viewer-title" id="viewerTitle"></span>
+    </div>
+    <div class="viewer-frame-wrap">
+      <iframe class="app-frame" id="appFrame" title="Modül"></iframe>
+    </div>
+  </div>
+
+<script>
+  /* =========================================================
+     PROJE LİSTESİ — buradan düzenle
+     - id     : rozet / renk sırası (p1..p6, tekrar edebilir)
+     - title  : kart üzerindeki başlık
+     - desc   : kısa açıklama
+     - file   : projenin dosya adı (aynı klasöre kopyala)
+     ========================================================= */
+  const projects = [
+    { id:"p1", title:"Profil Optimizasyon", desc:"Profil Optimizasyon", file:"profilOP.html" },
+    { id:"p2", title:"Raf Optimizasyon", desc:"Raf Optimizasyon", file:"dolapOP.html" },
+    { id:"p3", title:"Parke Optimizasyon", desc:"Parke Optimizasyon", file:"parkeOP.html" },
+    { id:"p4", title:"Açı Optimizasyon", desc:"Açı Optimizasyon", file:"aciolcer.html" },
+    { id:"p5", title:"Çizim Şablonu", desc:"Çizim Şablonu", file:"cizimSAB.html" },
+    { id:"p6", title:"Ara Destek", desc:"Ara Destek", file:"kapidestek.html" },
+  ];
+
+  const grid = document.getElementById("grid");
+  const viewer = document.getElementById("viewer");
+  const appFrame = document.getElementById("appFrame");
+  const viewerTitle = document.getElementById("viewerTitle");
+  const backBtn = document.getElementById("backBtn");
+
+  projects.forEach((p, i) => {
+    const btn = document.createElement("button");
+    btn.className = `plate ${p.id}`;
+    btn.innerHTML = `
+      <div class="plate-top">
+        <span class="toggle"></span>
+        <span class="led"></span>
+      </div>
+      <div class="plate-label">
+        <span class="index">${String(i+1).padStart(2,"0")}</span>
+        <h3>${p.title}</h3>
+        <p>${p.desc}</p>
+      </div>
+    `;
+    btn.addEventListener("click", () => openProject(p));
+    grid.appendChild(btn);
+  });
+
+  function openProject(p){
+    appFrame.src = p.file;
+    viewerTitle.textContent = p.title;
+    viewer.classList.add("open");
+    history.pushState({panel:true}, "", "#" + p.file.replace(".html",""));
+  }
+
+  function closeViewer(){
+    viewer.classList.remove("open");
+    setTimeout(() => { appFrame.src = "about:blank"; }, 300);
+    if (location.hash) history.pushState({}, "", location.pathname);
+  }
+
+  backBtn.addEventListener("click", closeViewer);
+  window.addEventListener("popstate", () => {
+    if (viewer.classList.contains("open")) closeViewer();
+  });
+</script>
+</body>
+</html>

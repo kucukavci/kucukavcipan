@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Profil Kesim Optimizasyonu</title>
+<link rel="stylesheet" href="CssJS/profil.css">
+
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="eyebrow">Kesim Planı Hesaplayıcı</div>
+    <h1>Profil Kesim Optimizasyonu</h1>
+    <p>Stok profil boyunu, uç temizleme ve testere paylarını gir, kesilecek parçaları listele — en az fire ile hangi profile hangi parçaların yerleştirileceğini otomatik hesapla.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- 1. Profil Ayarları -->
+  <div class="panel">
+    <div class="panel-head"><h2><span class="num">1</span>Profil Ayarları</h2></div>
+    <div class="panel-body">
+      <div class="field-grid">
+        <div class="field">
+          <label for="stockLength">Profil Boyu</label>
+          <div class="unit-input">
+            <input type="number" id="stockLength" value="6000" min="1" step="1">
+            <span class="unit">mm</span>
+          </div>
+          <small>Elinizdeki stok profilin tam boyu</small>
+        </div>
+        <div class="field">
+          <label for="trimAllowance">Uç Temizleme Payı (her uç)</label>
+          <div class="unit-input">
+            <input type="number" id="trimAllowance" value="5" min="0" step="0.5">
+            <span class="unit">mm</span>
+          </div>
+          <small>Profilin her iki ucundan atılacak pay</small>
+        </div>
+        <div class="field">
+          <label for="kerf">Testere Payı</label>
+          <div class="unit-input">
+            <input type="number" id="kerf" value="3" min="0" step="0.5">
+            <span class="unit">mm</span>
+          </div>
+          <small>Her kesimde kaybolan bıçak kalınlığı</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Parça Listesi -->
+  <div class="panel">
+    <div class="panel-head"><h2><span class="num">2</span>Parça Listesi</h2></div>
+    <div class="panel-body">
+      <div class="pieces-table">
+        <div class="pieces-head">
+          <div class="col-name">Parça Adı</div>
+          <div class="col-len">Boy (mm)</div>
+          <div class="col-qty">Adet</div>
+          <div class="col-del"></div>
+        </div>
+        <div id="pieceTableBody"></div>
+      </div>
+      <button class="add-row-btn" id="addRowBtn" type="button">+ Parça Ekle</button>
+    </div>
+  </div>
+
+  <div class="calc-bar">
+    <button id="calcBtn" type="button">⚙ Hesapla</button>
+  </div>
+
+  <div id="errorBox"></div>
+
+  <!-- 3. Sonuçlar -->
+  <div class="panel" id="resultsPanel" style="display:none;">
+    <div class="panel-head"><h2><span class="num">3</span>Sonuç Özeti</h2></div>
+    <div class="panel-body">
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="legend" id="legendBox"></div>
+    </div>
+  </div>
+
+  <!-- 4. Görsel Kesim Planı -->
+  <div class="panel" id="visualPanel" style="display:none;">
+    <div class="panel-head"><h2><span class="num">4</span>Görsel Kesim Planı</h2></div>
+    <div class="panel-body" id="barsContainer"></div>
+  </div>
+
+  <footer class="credit">Tüm hesaplamalar tarayıcınızda yapılır · veriniz cihazınızdan çıkmaz</footer>
+</div>
+
+<script src="CssJS/profil.js"></script>
+</body>
+</html>
