@@ -1,5 +1,5 @@
-const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+  const canvas = document.getElementById('canvas');
+        let ctx = canvas.getContext('2d');
         const panel = document.getElementById('properties-panel');
 
         const inputLength = document.getElementById('input-length');
@@ -7,26 +7,11 @@ const canvas = document.getElementById('canvas');
         const inputThickness = document.getElementById('input-thickness');
         const inputCut1 = document.getElementById('input-cut1');
         const inputCut2 = document.getElementById('input-cut2');
+        const inputName = document.getElementById('input-name');
 
         const PX_PER_CM = 10;
         const SNAP_TOLERANCE_PX = 25;   // ekran pikseli cinsinden - zoom'dan bağımsız hissettirir
         const SNAP_PREVIEW_PX = 65;     // yakındaki olası noktaları önizleme yarıçapı
-
-        // ---------- localStorage: durumu kaydet / geri yükle ----------
-        const CIZIM_STORAGE_KEY = 'panel_cizimSablonu_state_v1';
-        function saveCizimState(){
-            try{
-                const state = { lines, nextId, viewScale, viewX, viewY };
-                localStorage.setItem(CIZIM_STORAGE_KEY, JSON.stringify(state));
-            }catch(e){ /* localStorage kullanılamıyorsa sessizce geç */ }
-        }
-        function loadCizimState(){
-            try{
-                const raw = localStorage.getItem(CIZIM_STORAGE_KEY);
-                if(!raw) return null;
-                return JSON.parse(raw);
-            }catch(e){ return null; }
-        }
 
         let lines = [];
         let nextId = 1;
@@ -72,6 +57,29 @@ const canvas = document.getElementById('canvas');
             window.visualViewport.addEventListener('resize', resizeCanvas);
             window.visualViewport.addEventListener('scroll', resizeCanvas);
         }
+
+        // ===== OTOMATİK KAYDETME (tarayıcı hafızası) =====
+        const STORAGE_KEY = 'iskelet-cizim-autosave-v1';
+
+        function autosave() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ nextId, lines }));
+            } catch (e) { /* depolama kullanılamıyor - sessizce geç */ }
+        }
+
+        function loadAutosave() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (data && Array.isArray(data.lines)) {
+                    lines = data.lines;
+                    nextId = data.nextId || (lines.reduce((m, l) => Math.max(m, l.id || 0), 0) + 1);
+                }
+            } catch (e) { /* bozuk veri - yoksay */ }
+        }
+
+        loadAutosave();
         resizeCanvas();
 
         // Ham ekran (client) koordinatları
@@ -394,21 +402,40 @@ const canvas = document.getElementById('canvas');
                     updateModeUI(btnMove);
                     selectLine(newLine);
                 }
+                autosave();
+            } else if (currentMode === 'move') {
+                autosave();
             }
             redraw();
-            saveCizimState();
         }
 
         function selectLine(line) {
             selectedLine = line;
             if (line) {
                 panel.classList.add('panel-visible');
+                // Mobilde panel ekranı kaplamasın diye varsayılan olarak küçültülmüş açılır
+                if (window.matchMedia('(max-width: 640px)').matches) {
+                    panel.classList.add('collapsed');
+                } else {
+                    panel.classList.remove('collapsed');
+                }
+                updateToggleIcon();
                 updatePanelValues();
             } else {
                 panel.classList.remove('panel-visible');
             }
             redraw();
         }
+
+        function updateToggleIcon() {
+            const btn = document.getElementById('btn-toggle-panel');
+            if (btn) btn.textContent = panel.classList.contains('collapsed') ? '▾' : '▲';
+        }
+
+        document.getElementById('btn-toggle-panel').addEventListener('click', () => {
+            panel.classList.toggle('collapsed');
+            updateToggleIcon();
+        });
 
         function updatePanelValues() {
             if(!selectedLine) return;
@@ -426,9 +453,31 @@ const canvas = document.getElementById('canvas');
             inputThickness.value = selectedLine.thicknessCm || 4;
             inputCut1.value = selectedLine.cut1 || 0;
             inputCut2.value = selectedLine.cut2 || 0;
+            inputName.value = selectedLine.name || '';
+
+            const titleEl = document.getElementById('panel-title');
+            if (titleEl) titleEl.textContent = (selectedLine.name ? selectedLine.name + ' · ' : `Parça #${selectedLine.id} · `) + `${lengthCm.toFixed(1)}cm`;
+
+            // Kesim açıları uygulandığında üst/alt kenarların gerçek (görünen) uzunluğu
+            // eksen uzunluğundan farklı olur - bunu şeffaf şekilde gösteriyoruz.
+            const edgeInfoEl = document.getElementById('edge-info');
+            if (edgeInfoEl) {
+                const t = selectedLine.thicknessCm || 4;
+                const c1 = (selectedLine.cut1 || 0) * Math.PI / 180;
+                const c2 = (selectedLine.cut2 || 0) * Math.PI / 180;
+                const off1 = (t / 2) * Math.tan(c1);
+                const off2 = (t / 2) * Math.tan(c2);
+                const topEdgeCm = (lengthPx + off2 - off1) / PX_PER_CM;
+                const botEdgeCm = (lengthPx - off2 + off1) / PX_PER_CM;
+                if (selectedLine.cut1 || selectedLine.cut2) {
+                    edgeInfoEl.innerHTML = `<b>Eksen:</b> ${lengthCm.toFixed(1)}cm &nbsp;|&nbsp; <b>Üst kenar:</b> ${topEdgeCm.toFixed(1)}cm &nbsp;|&nbsp; <b>Alt kenar:</b> ${botEdgeCm.toFixed(1)}cm`;
+                } else {
+                    edgeInfoEl.innerHTML = '';
+                }
+            }
         }
 
-        document.getElementById('btn-apply').addEventListener('click', () => {
+        function applyPanelChanges() {
             if (!selectedLine) return;
 
             let newLengthPx = parseFloat(inputLength.value) * PX_PER_CM;
@@ -440,17 +489,55 @@ const canvas = document.getElementById('canvas');
             selectedLine.thicknessCm = parseFloat(inputThickness.value) || 0;
             selectedLine.cut1 = parseFloat(inputCut1.value) || 0;
             selectedLine.cut2 = parseFloat(inputCut2.value) || 0;
+            selectedLine.name = (inputName.value || '').trim();
 
+            updatePanelValues();
+            autosave();
             redraw();
-            saveCizimState();
+        }
+        document.getElementById('btn-apply').addEventListener('click', applyPanelChanges);
+
+        // Kesim yönünü tek tıkla ters çevir (kullanıcı hangi işareti gireceğini bilmek zorunda kalmasın)
+        document.getElementById('btn-flip-cut1').addEventListener('click', () => {
+            if (!selectedLine) return;
+            inputCut1.value = -(parseFloat(inputCut1.value) || 0);
+            applyPanelChanges();
+        });
+        document.getElementById('btn-flip-cut2').addEventListener('click', () => {
+            if (!selectedLine) return;
+            inputCut2.value = -(parseFloat(inputCut2.value) || 0);
+            applyPanelChanges();
         });
 
-        document.getElementById('btn-delete').addEventListener('click', () => {
+        document.getElementById('btn-duplicate').addEventListener('click', () => {
+            if (!selectedLine) return;
+            const offset = 30; // hafif kaydırılmış belirsin ki orijinalin tam üstüne binmesin
+            const copy = {
+                id: nextId++,
+                x1: selectedLine.x1 + offset, y1: selectedLine.y1 + offset,
+                x2: selectedLine.x2 + offset, y2: selectedLine.y2 + offset,
+                thicknessCm: selectedLine.thicknessCm,
+                cut1: selectedLine.cut1,
+                cut2: selectedLine.cut2,
+                name: selectedLine.name || ''
+            };
+            lines.push(copy);
+            // Kopya otomatik olarak taşıma modunda seçili gelir; sadece sürükleyip yerine koyman yeterli
+            currentMode = 'move';
+            updateModeUI(btnMove);
+            selectLine(copy);
+            autosave();
+        });
+
+        function deleteSelectedLine() {
             if (!selectedLine) return;
             lines = lines.filter(l => l !== selectedLine);
             selectLine(null);
-            saveCizimState();
-        });
+            autosave();
+        }
+
+        document.getElementById('btn-delete').addEventListener('click', deleteSelectedLine);
+        document.getElementById('btn-delete-toolbar').addEventListener('click', deleteSelectedLine);
 
         function findLineNear(x, y) {
             const tolerance = 20;
@@ -568,7 +655,7 @@ const canvas = document.getElementById('canvas');
 
         // Her parçanın üzerine uzunluk (ve seçiliyse kalınlık/açı) etiketi çizer.
         // Etiketler ekran uzayında (zoom'dan bağımsız sabit boyutta) çizilir.
-        function drawLabels() {
+        function drawLabels(forceDetails) {
             lines.forEach(line => {
                 let dx = line.x2 - line.x1;
                 let dy = line.y2 - line.y1;
@@ -589,7 +676,7 @@ const canvas = document.getElementById('canvas');
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
 
-                let mainText = `#${line.id} · ${lengthCm.toFixed(1)}cm`;
+                let mainText = `${line.name ? line.name : '#' + line.id} · ${lengthCm.toFixed(1)}cm`;
                 ctx.font = '11px Segoe UI, sans-serif';
                 const padding = 5;
                 const w = ctx.measureText(mainText).width + padding * 2;
@@ -598,8 +685,10 @@ const canvas = document.getElementById('canvas');
                 ctx.fillStyle = '#ffffff';
                 ctx.fillText(mainText, lx, ly);
 
-                if (isSel) {
-                    let subParts = [`t:${line.thicknessCm || 4}cm`];
+                if (isSel || forceDetails) {
+                    let subParts = [];
+                    if (line.name) subParts.push(`#${line.id}`);
+                    subParts.push(`t:${line.thicknessCm || 4}cm`);
                     if (line.cut1) subParts.push(`başl:${line.cut1}°`);
                     if (line.cut2) subParts.push(`bitiş:${line.cut2}°`);
                     let subText = subParts.join('  ');
@@ -628,20 +717,24 @@ const canvas = document.getElementById('canvas');
 
             if (lines.length === 0) {
                 listContent.innerHTML = '<div id="list-empty">Henüz parça yok</div>';
-                listTotal.textContent = '';
+                listTotal.innerHTML = '';
                 return;
             }
 
             let totalCm = 0;
+            const byThickness = {};
             let rowsHtml = lines.map(line => {
                 let dx = line.x2 - line.x1;
                 let dy = line.y2 - line.y1;
                 let lengthCm = Math.hypot(dx, dy) / PX_PER_CM;
                 totalCm += lengthCm;
+                const t = line.thicknessCm || 4;
+                byThickness[t] = (byThickness[t] || 0) + lengthCm;
                 const isSel = line === selectedLine;
+                const label = line.name ? `${line.name} (#${line.id})` : `#${line.id}`;
                 return `<div class="list-row${isSel ? ' list-row-active' : ''}" data-id="${line.id}">
                     <span class="list-row-info">
-                        <span class="list-row-main">#${line.id} — ${lengthCm.toFixed(1)}cm (t:${line.thicknessCm || 4})</span>
+                        <span class="list-row-main">${label} — ${lengthCm.toFixed(1)}cm (t:${t})</span>
                         <span class="list-row-sub">Açılar: ${line.cut1 || 0}° / ${line.cut2 || 0}°</span>
                     </span>
                     <span class="list-del" data-id="${line.id}">×</span>
@@ -649,7 +742,16 @@ const canvas = document.getElementById('canvas');
             }).join('');
 
             listContent.innerHTML = rowsHtml;
-            listTotal.textContent = `Toplam: ${lines.length} parça, ${totalCm.toFixed(1)} cm (${(totalCm / 100).toFixed(2)} m)`;
+
+            const breakdownHtml = Object.keys(byThickness).sort((a, b) => a - b).map(t =>
+                `<div style="display:flex; justify-content:space-between; color:#6b7280;">
+                    <span>t:${t}cm toplam</span><span>${byThickness[t].toFixed(1)}cm</span>
+                </div>`
+            ).join('');
+            listTotal.innerHTML = `${breakdownHtml}
+                <div style="margin-top:5px; padding-top:5px; border-top:1px solid #c3cbdb; font-weight:bold;">
+                    Genel Toplam: ${lines.length} parça, ${totalCm.toFixed(1)} cm (${(totalCm / 100).toFixed(2)} m)
+                </div>`;
 
             listContent.querySelectorAll('.list-del').forEach(el => {
                 el.addEventListener('click', (e) => {
@@ -658,7 +760,7 @@ const canvas = document.getElementById('canvas');
                     const wasSelected = selectedLine && selectedLine.id === id;
                     lines = lines.filter(l => l.id !== id);
                     if (wasSelected) selectLine(null); else redraw();
-                    saveCizimState();
+                    autosave();
                 });
             });
             listContent.querySelectorAll('.list-row').forEach(el => {
@@ -677,6 +779,157 @@ const canvas = document.getElementById('canvas');
             e.currentTarget.classList.toggle('active', !isOpen);
             if (!isOpen) renderListPanel();
         });
+
+        // ===== MENÜ: KAYDET / YÜKLE / PNG =====
+        document.getElementById('btn-menu').addEventListener('click', (e) => {
+            const mp = document.getElementById('menu-panel');
+            const isOpen = mp.style.display === 'flex';
+            mp.style.display = isOpen ? 'none' : 'flex';
+            e.currentTarget.classList.toggle('active', !isOpen);
+        });
+
+        function exportJSON() {
+            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
+            const data = { version: 1, nextId, lines };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'iskelet-cizim.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        document.getElementById('btn-export-json').addEventListener('click', exportJSON);
+
+        document.getElementById('btn-import-json').addEventListener('click', () => {
+            document.getElementById('file-import-input').click();
+        });
+
+        document.getElementById('file-import-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data && Array.isArray(data.lines)) {
+                        if (lines.length > 0 && !confirm('Mevcut çizim silinip yüklenen dosyayla değiştirilecek. Devam edilsin mi?')) {
+                            return;
+                        }
+                        lines = data.lines;
+                        nextId = data.nextId || (lines.reduce((m, l) => Math.max(m, l.id || 0), 0) + 1);
+                        selectLine(null);
+                        autosave();
+                    } else {
+                        alert('Geçersiz dosya formatı.');
+                    }
+                } catch (err) {
+                    alert('Dosya okunamadı: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = ''; // aynı dosyayı tekrar seçebilmek için sıfırla
+        });
+
+        function exportPNG() {
+            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
+
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            lines.forEach(l => {
+                getProfileSnapPoints(l).forEach(p => {
+                    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                });
+            });
+            const pad = 60;
+            const w = Math.ceil((maxX - minX) + pad * 2);
+            const h = Math.ceil((maxY - minY) + pad * 2);
+
+            // Ekrandaki durumu geçici olarak sakla
+            const origCtx = ctx, origScale = viewScale, origVX = viewX, origVY = viewY;
+            const origSelected = selectedLine, origNearby = nearbySnapPoints, origActive = activeSnapPoint;
+
+            const off = document.createElement('canvas');
+            off.width = w;
+            off.height = h;
+            const octx = off.getContext('2d');
+            octx.fillStyle = '#ffffff';
+            octx.fillRect(0, 0, w, h);
+
+            // Global çizim fonksiyonlarını (drawProfile/drawLabels) geçici olarak offscreen tuvale yönlendir
+            ctx = octx;
+            viewScale = 1;
+            viewX = pad - minX;
+            viewY = pad - minY;
+            selectedLine = null;
+            nearbySnapPoints = [];
+            activeSnapPoint = null;
+
+            drawWorld(() => {
+                lines.forEach(line => drawProfile(line, false));
+            });
+            drawLabels(true); // parça detaylarını (kalınlık/açı) her zaman göster
+
+            const dataUrl = off.toDataURL('image/png');
+
+            // Ekran durumunu geri yükle
+            ctx = origCtx;
+            viewScale = origScale;
+            viewX = origVX;
+            viewY = origVY;
+            selectedLine = origSelected;
+            nearbySnapPoints = origNearby;
+            activeSnapPoint = origActive;
+            redraw();
+
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = 'iskelet-cizim.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+        document.getElementById('btn-export-png').addEventListener('click', exportPNG);
+
+        function copyListToClipboard() {
+            if (lines.length === 0) { alert('Kopyalanacak parça yok.'); return; }
+            let totalCm = 0;
+            let textLines = lines.map(line => {
+                let dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+                let lengthCm = Math.hypot(dx, dy) / PX_PER_CM;
+                totalCm += lengthCm;
+                const label = line.name ? `${line.name} (#${line.id})` : `#${line.id}`;
+                return `${label}: ${lengthCm.toFixed(1)}cm, kalınlık:${line.thicknessCm || 4}cm, açılar:${line.cut1 || 0}°/${line.cut2 || 0}°`;
+            });
+            textLines.push('');
+            textLines.push(`Toplam: ${lines.length} parça, ${totalCm.toFixed(1)}cm (${(totalCm / 100).toFixed(2)}m)`);
+            const text = textLines.join('\n');
+
+            const btn = document.getElementById('btn-copy-list');
+            const showFeedback = (msg) => {
+                if (!btn) return;
+                const original = btn.textContent;
+                btn.textContent = msg;
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => showFeedback('✓')).catch(() => alert('Kopyalanamadı, tarayıcı izin vermedi.'));
+            } else {
+                // Eski tarayıcı yedek yöntemi
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                try { document.execCommand('copy'); showFeedback('✓'); } catch (err) { alert('Kopyalanamadı.'); }
+                document.body.removeChild(ta);
+            }
+        }
+        document.getElementById('btn-copy-list').addEventListener('click', copyListToClipboard);
 
         function redraw() {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -705,28 +958,35 @@ const canvas = document.getElementById('canvas');
         canvas.addEventListener('touchend', endInteraction, {passive: false});
         canvas.addEventListener('touchcancel', endInteraction, {passive: false});
 
-        document.getElementById('btn-clear').addEventListener('click', () => {
-            if(confirm("Tüm çizimi temizlemek istediğinize emin misiniz?")) {
+        function clearAll() {
+            if (confirm("Tüm çizimi temizlemek istediğinize emin misiniz?")) {
                 lines = [];
                 selectLine(null);
-                saveCizimState();
+                autosave();
             }
-        });
+        }
+        document.getElementById('btn-clear').addEventListener('click', clearAll);
 
-        document.getElementById('btn-undo').addEventListener('click', () => {
+        function undoLast() {
             lines.pop();
             selectLine(null);
-            saveCizimState();
-        });
+            autosave();
+        }
+        document.getElementById('btn-undo').addEventListener('click', undoLast);
 
-        /* ---------- kayıtlı durumu geri yükle (sayfa açılışında) ---------- */
-        (function restoreCizimState(){
-            const saved = loadCizimState();
-            if(!saved) return;
-            if(Array.isArray(saved.lines)) lines = saved.lines;
-            if(typeof saved.nextId === 'number') nextId = saved.nextId;
-            if(typeof saved.viewScale === 'number') viewScale = saved.viewScale;
-            if(typeof saved.viewX === 'number') viewX = saved.viewX;
-            if(typeof saved.viewY === 'number') viewY = saved.viewY;
-            redraw();
-        })();
+        // ===== KLAVYE KISAYOLLARI (masaüstü) =====
+        document.addEventListener('keydown', (e) => {
+            const tag = (e.target && e.target.tagName) || '';
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return; // bir alana yazarken kısayolları tetikleme
+
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selectedLine) {
+                e.preventDefault();
+                deleteSelectedLine();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undoLast();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+                e.preventDefault();
+                if (selectedLine) document.getElementById('btn-duplicate').click();
+            }
+        });

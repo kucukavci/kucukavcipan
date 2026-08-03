@@ -75,10 +75,11 @@ html, body {
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(255, 255, 255, 0.95);
+            background: #e4e9f2;
+            border: 1px solid #c3cbdb;
             padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
             display: none;
             z-index: 100;
             flex-direction: column;
@@ -86,6 +87,36 @@ html, body {
             width: 170px;
         }
         #properties-panel.panel-visible { display: flex; }
+
+        #panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+        #panel-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #2b2d42;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .panel-icon-btn {
+            padding: 6px 9px;
+            font-size: 12px;
+            background: #8d99ae;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        #btn-toggle-panel {
+            padding: 6px 10px;
+            background: #2b2d42;
+        }
+
+        /* Masaüstünde panel-body, eski düz flex-column yerleşimini bozmasın diye "görünmez" kalıyor */
+        #panel-body { display: contents; }
+        #properties-panel.collapsed #panel-body { display: none; }
 
         .input-group {
             display: flex;
@@ -132,10 +163,11 @@ html, body {
             position: fixed;
             top: 20px;
             left: 20px;
-            background: rgba(255, 255, 255, 0.95);
+            background: #e4e9f2;
+            border: 1px solid #c3cbdb;
             padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
             display: none;
             z-index: 100;
             width: 230px;
@@ -193,6 +225,23 @@ html, body {
             text-align: center;
         }
 
+        #menu-panel {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            background: #e4e9f2;
+            border: 1px solid #c3cbdb;
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.25);
+            display: none;
+            z-index: 100;
+            flex-direction: column;
+            gap: 8px;
+            width: 190px;
+        }
+        #menu-panel button { width: 100%; text-align: left; }
+
         /* ===== MOBİL DÜZENİ ===== */
         @media (max-width: 640px) {
             /* Toolbar: eski tek satır + yatay kaydırma haline geri döndü, sadece biraz küçültüldü */
@@ -221,12 +270,15 @@ html, body {
                 max-width: calc(100vw - 20px);
                 max-height: 75vh;
                 overflow-y: auto;
-                column-gap: 8px;
-                row-gap: 6px;
+                gap: 8px;
                 padding: 12px;
                 box-sizing: border-box;
             }
-            #properties-panel.panel-visible {
+            #panel-body {
+                column-gap: 8px;
+                row-gap: 6px;
+            }
+            #properties-panel.panel-visible:not(.collapsed) #panel-body {
                 display: grid;
                 grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             }
@@ -247,6 +299,9 @@ html, body {
                 grid-column: 1 / -1;
                 margin: 2px 0;
             }
+            #properties-panel .span-all {
+                grid-column: 1 / -1;
+            }
             #panel-actions {
                 grid-column: 1 / -1;
             }
@@ -262,5 +317,13 @@ html, body {
                 max-width: calc(100vw - 20px);
                 max-height: 60vh;
                 box-sizing: border-box;
+            }
+
+            #menu-panel {
+                right: 10px;
+                bottom: 70px;
+                bottom: calc(70px + env(safe-area-inset-bottom));
+                width: 200px;
+                max-width: calc(100vw - 20px);
             }
         }
