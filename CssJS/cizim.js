@@ -1,4 +1,4 @@
-  const canvas = document.getElementById('canvas');
+const canvas = document.getElementById('canvas');
         let ctx = canvas.getContext('2d');
         const panel = document.getElementById('properties-panel');
 
@@ -23,6 +23,48 @@
         let currentMode = 'draw';
         let selectedLine = null;
         let dragOffsetX = 0, dragOffsetY = 0;
+        let isPanningCanvas = false; // boş alana dokunulduğunda otomatik kaydırma
+
+        // --- Grup seçimi/taşıma durumu ---
+        let groupSelectedIds = new Set();
+        let groupPressLine = null;
+        let groupIsDragging = false;
+        let groupDragStartWorld = { x: 0, y: 0 };
+        let groupSnapshot = [];
+
+        // --- Hizalama kılavuz çizgileri (sürüklerken gösterilir) ---
+        let alignmentGuides = [];
+
+        // --- Görünüm renkleri (özelleştirilebilir) ---
+        let canvasBgColor = '#ffffff';
+        let gridColor = '#eef0f2';
+        let pieceColor = '#8d99ae';
+
+        function hexToRgba(hex, alpha) {
+            const h = hex.replace('#', '');
+            const r = parseInt(h.substring(0, 2), 16) || 0;
+            const g = parseInt(h.substring(2, 4), 16) || 0;
+            const b = parseInt(h.substring(4, 6), 16) || 0;
+            return `rgba(${r},${g},${b},${alpha})`;
+        }
+
+        const THEME_STORAGE_KEY = 'iskelet-cizim-theme-v1';
+        function saveTheme() {
+            try {
+                localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify({ canvasBgColor, gridColor, pieceColor }));
+            } catch (e) { /* yoksay */ }
+        }
+        function loadTheme() {
+            try {
+                const raw = localStorage.getItem(THEME_STORAGE_KEY);
+                if (!raw) return;
+                const data = JSON.parse(raw);
+                if (data.canvasBgColor) canvasBgColor = data.canvasBgColor;
+                if (data.gridColor) gridColor = data.gridColor;
+                if (data.pieceColor) pieceColor = data.pieceColor;
+            } catch (e) { /* yoksay */ }
+        }
+        loadTheme();
 
         const btnDraw = document.getElementById('btn-draw');
         const btnMove = document.getElementById('btn-move');
@@ -103,24 +145,27 @@
             currentMode = 'draw';
             updateModeUI(e.currentTarget);
             selectLine(null);
+            groupSelectedIds.clear();
         });
 
         document.getElementById('btn-move').addEventListener('click', (e) => {
             currentMode = 'move';
             updateModeUI(e.currentTarget);
+            groupSelectedIds.clear();
+            redraw();
         });
 
-        document.getElementById('btn-pan').addEventListener('click', (e) => {
-            currentMode = 'pan';
+        document.getElementById('btn-group').addEventListener('click', (e) => {
+            currentMode = 'group';
             updateModeUI(e.currentTarget);
+            selectLine(null);
         });
 
         function updateModeUI(activeBtn) {
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             activeBtn.classList.add('active');
-            if (currentMode === 'pan') canvas.style.cursor = 'grab';
-            else if (currentMode === 'move') canvas.style.cursor = 'pointer';
-            else canvas.style.cursor = 'crosshair';
+            if (currentMode === 'draw') canvas.style.cursor = 'crosshair';
+            else canvas.style.cursor = 'grab'; // 'move' ve 'group': boşluğa dokunursan kaydırır, parçaya dokunursan seçer
         }
 
         // Bir parçanın eksen uçlarını, 4 köşesini ve üst/alt kenar orta noktalarını
@@ -133,15 +178,25 @@
             let t = (line.thicknessCm || 4) * PX_PER_CM;
             let c1 = (line.cut1 || 0) * Math.PI / 180;
             let c2 = (line.cut2 || 0) * Math.PI / 180;
-            let offset1 = (t / 2) * Math.tan(c1);
-            let offset2 = (t / 2) * Math.tan(c2);
+            let full1 = t * Math.tan(c1);
+            let full2 = t * Math.tan(c2);
+            const side1 = line.cut1Side || 'top'; // bu uçta hangi köşe SABİT (uzun nokta) kalır
+            const side2 = line.cut2Side || 'top';
             const cosA = Math.cos(angle), sinA = Math.sin(angle);
             const toWorld = (lx, ly) => ({ x: line.x1 + lx * cosA - ly * sinA, y: line.y1 + lx * sinA + ly * cosA });
 
-            const TL = toWorld(offset1, -t / 2);
-            const TR = toWorld(length + offset2, -t / 2);
-            const BR = toWorld(length - offset2, t / 2);
-            const BL = toWorld(-offset1, t / 2);
+            // Başlangıç ucu: seçilen köşe (üst/alt) tam eksen başlangıcında (x=0) sabit kalır,
+            // diğer köşe içeri doğru kesilir.
+            let TLx = side1 === 'top' ? 0 : full1;
+            let BLx = side1 === 'top' ? full1 : 0;
+            // Bitiş ucu: seçilen köşe tam eksen sonunda (x=length) sabit kalır.
+            let TRx = side2 === 'top' ? length : length - full2;
+            let BRx = side2 === 'top' ? length - full2 : length;
+
+            const TL = toWorld(TLx, -t / 2);
+            const TR = toWorld(TRx, -t / 2);
+            const BR = toWorld(BRx, t / 2);
+            const BL = toWorld(BLx, t / 2);
             const topMid = { x: (TL.x + TR.x) / 2, y: (TL.y + TR.y) / 2 };
             const botMid = { x: (BL.x + BR.x) / 2, y: (BL.y + BR.y) / 2 };
 
@@ -236,24 +291,15 @@
             if (e.target !== canvas) return;
             e.preventDefault();
 
-            if (currentMode === 'pan') {
-                const screen = getScreenCoordinates(e);
-                isInteracting = true;
-                panLastX = screen.x;
-                panLastY = screen.y;
-                canvas.style.cursor = 'grabbing';
-                return;
-            }
-
             const coords = getCoordinates(e);
-            let snap = getSnapPoint(coords.x, coords.y);
-            startX = snap.x;
-            startY = snap.y;
-            currentX = snap.x;
-            currentY = snap.y;
-            activeSnapPoint = snap.snapped ? snap : null;
 
             if (currentMode === 'draw') {
+                let snap = getSnapPoint(coords.x, coords.y);
+                startX = snap.x;
+                startY = snap.y;
+                currentX = snap.x;
+                currentY = snap.y;
+                activeSnapPoint = snap.snapped ? snap : null;
                 isInteracting = true;
                 selectLine(null);
             } else if (currentMode === 'move') {
@@ -261,10 +307,37 @@
                 if (clickedLine) {
                     selectLine(clickedLine);
                     isInteracting = true;
+                    isPanningCanvas = false;
                     dragOffsetX = coords.x - clickedLine.x1;
                     dragOffsetY = coords.y - clickedLine.y1;
                 } else {
+                    // Boş bir alana dokunuldu: parça seçmek yerine tuvali kaydır
                     selectLine(null);
+                    const screen = getScreenCoordinates(e);
+                    isInteracting = true;
+                    isPanningCanvas = true;
+                    panLastX = screen.x;
+                    panLastY = screen.y;
+                    canvas.style.cursor = 'grabbing';
+                }
+            } else if (currentMode === 'group') {
+                let clickedLine = findLineNear(coords.x, coords.y);
+                if (clickedLine) {
+                    groupPressLine = clickedLine;
+                    groupIsDragging = false;
+                    groupDragStartWorld = { x: coords.x, y: coords.y };
+                    groupSnapshot = lines.filter(l => groupSelectedIds.has(l.id))
+                        .map(l => ({ line: l, x1: l.x1, y1: l.y1, x2: l.x2, y2: l.y2 }));
+                    isInteracting = true;
+                    isPanningCanvas = false;
+                } else {
+                    // Boş alana dokunuldu: grup modunda da kaydırma yapılabilsin
+                    const screen = getScreenCoordinates(e);
+                    isInteracting = true;
+                    isPanningCanvas = true;
+                    panLastX = screen.x;
+                    panLastY = screen.y;
+                    canvas.style.cursor = 'grabbing';
                 }
             }
         }
@@ -289,7 +362,7 @@
             if (!isInteracting) return;
             e.preventDefault();
 
-            if (currentMode === 'pan') {
+            if (isPanningCanvas) {
                 const screen = getScreenCoordinates(e);
                 viewX += (screen.x - panLastX);
                 viewY += (screen.y - panLastY);
@@ -362,7 +435,32 @@
                 selectedLine.x2 = newX2 + snapOffset.x;
                 selectedLine.y2 = newY2 + snapOffset.y;
 
+                // Uzaktaki parçalarla hizalanma durumunu (aynı satır/sütun) tam ekran kılavuz
+                // çizgileriyle göster - mıknatıs menzili dışında kalsa bile fark edilsin diye.
+                alignmentGuides = findAlignmentGuides(getProfileSnapPoints(selectedLine), selectedLine);
+
                 redraw();
+            }
+            else if (currentMode === 'group' && groupPressLine) {
+                let dx = coords.x - groupDragStartWorld.x;
+                let dy = coords.y - groupDragStartWorld.y;
+
+                if (!groupIsDragging && Math.hypot(dx, dy) > 5) {
+                    groupIsDragging = true;
+                    // Sürüklemeye başlanan parça henüz grupta değilse otomatik olarak gruba eklensin
+                    if (!groupSelectedIds.has(groupPressLine.id)) {
+                        groupSelectedIds.add(groupPressLine.id);
+                        groupSnapshot.push({ line: groupPressLine, x1: groupPressLine.x1, y1: groupPressLine.y1, x2: groupPressLine.x2, y2: groupPressLine.y2 });
+                    }
+                }
+
+                if (groupIsDragging) {
+                    groupSnapshot.forEach(s => {
+                        s.line.x1 = s.x1 + dx; s.line.y1 = s.y1 + dy;
+                        s.line.x2 = s.x2 + dx; s.line.y2 = s.y2 + dy;
+                    });
+                    redraw();
+                }
             }
         }
 
@@ -376,8 +474,10 @@
             isInteracting = false;
             activeSnapPoint = null;
             nearbySnapPoints = [];
+            alignmentGuides = [];
 
-            if (currentMode === 'pan') {
+            if (isPanningCanvas) {
+                isPanningCanvas = false;
                 canvas.style.cursor = 'grab';
                 redraw();
                 return;
@@ -392,7 +492,9 @@
                         x2: currentX, y2: currentY,
                         thicknessCm: parseFloat(inputThickness.value) || 4,
                         cut1: 0,
-                        cut2: 0
+                        cut2: 0,
+                        cut1Side: 'top',
+                        cut2Side: 'top'
                     };
                     lines.push(newLine);
 
@@ -405,8 +507,41 @@
                 autosave();
             } else if (currentMode === 'move') {
                 autosave();
+            } else if (currentMode === 'group' && groupPressLine) {
+                if (!groupIsDragging) {
+                    // Sadece dokunuldu (sürüklenmedi): grup üyeliğini aç/kapat
+                    if (groupSelectedIds.has(groupPressLine.id)) groupSelectedIds.delete(groupPressLine.id);
+                    else groupSelectedIds.add(groupPressLine.id);
+                } else {
+                    autosave();
+                }
+                groupPressLine = null;
+                groupIsDragging = false;
             }
             redraw();
+        }
+
+        // Sürüklenen parçanın nokta setini, diğer parçaların noktalarıyla X/Y ekseninde
+        // (mesafeden bağımsız) karşılaştırır; eşleşme varsa tam ekran kılavuz çizgisi döndürür.
+        function findAlignmentGuides(movingPoints, excludeLine) {
+            const tol = 4 / viewScale;
+            let guides = [];
+            let bestY = null, bestYDist = tol;
+            let bestX = null, bestXDist = tol;
+            lines.forEach(l => {
+                if (l === excludeLine) return;
+                getProfileSnapPoints(l).forEach(tp => {
+                    movingPoints.forEach(mp => {
+                        let dy = Math.abs(mp.y - tp.y);
+                        if (dy < bestYDist) { bestYDist = dy; bestY = tp.y; }
+                        let dx = Math.abs(mp.x - tp.x);
+                        if (dx < bestXDist) { bestXDist = dx; bestX = tp.x; }
+                    });
+                });
+            });
+            if (bestY !== null) guides.push({ type: 'y', value: bestY });
+            if (bestX !== null) guides.push({ type: 'x', value: bestX });
+            return guides;
         }
 
         function selectLine(line) {
@@ -432,10 +567,19 @@
             if (btn) btn.textContent = panel.classList.contains('collapsed') ? '▾' : '▲';
         }
 
-        document.getElementById('btn-toggle-panel').addEventListener('click', () => {
+        function toggleCollapse() {
             panel.classList.toggle('collapsed');
             updateToggleIcon();
+        }
+
+        document.getElementById('btn-toggle-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleCollapse();
         });
+
+        // Mobilde küçük oka basmak yerine tüm başlık şeridine dokunarak da aç/kapat yapılabilsin
+        document.getElementById('panel-header').addEventListener('click', toggleCollapse);
+        document.getElementById('btn-duplicate').addEventListener('click', (e) => e.stopPropagation());
 
         function updatePanelValues() {
             if(!selectedLine) return;
@@ -458,19 +602,34 @@
             const titleEl = document.getElementById('panel-title');
             if (titleEl) titleEl.textContent = (selectedLine.name ? selectedLine.name + ' · ' : `Parça #${selectedLine.id} · `) + `${lengthCm.toFixed(1)}cm`;
 
-            // Kesim açıları uygulandığında üst/alt kenarların gerçek (görünen) uzunluğu
-            // eksen uzunluğundan farklı olur - bunu şeffaf şekilde gösteriyoruz.
+            // Üst/Alt köşe referans butonlarının etiketini güncel duruma göre göster
+            const side1 = selectedLine.cut1Side || 'top';
+            const side2 = selectedLine.cut2Side || 'top';
+            const flipBtn1 = document.getElementById('btn-flip-cut1');
+            const flipBtn2 = document.getElementById('btn-flip-cut2');
+            if (flipBtn1) flipBtn1.textContent = side1 === 'top' ? '⬆Üst' : '⬇Alt';
+            if (flipBtn2) flipBtn2.textContent = side2 === 'top' ? '⬆Üst' : '⬇Alt';
+
+            // Her iki ucun bağımsız üst/alt referansına göre GERÇEK üst ve alt kenar uzunluklarını hesapla.
+            // (Kalınlık cm->px çevrimi burada doğru yapılıyor; önceki sürümde birim karışıklığı vardı.)
             const edgeInfoEl = document.getElementById('edge-info');
             if (edgeInfoEl) {
-                const t = selectedLine.thicknessCm || 4;
+                const tPx = (selectedLine.thicknessCm || 4) * PX_PER_CM;
                 const c1 = (selectedLine.cut1 || 0) * Math.PI / 180;
                 const c2 = (selectedLine.cut2 || 0) * Math.PI / 180;
-                const off1 = (t / 2) * Math.tan(c1);
-                const off2 = (t / 2) * Math.tan(c2);
-                const topEdgeCm = (lengthPx + off2 - off1) / PX_PER_CM;
-                const botEdgeCm = (lengthPx - off2 + off1) / PX_PER_CM;
+                const full1 = tPx * Math.tan(c1);
+                const full2 = tPx * Math.tan(c2);
+
+                const TLx = side1 === 'top' ? 0 : full1;
+                const BLx = side1 === 'top' ? full1 : 0;
+                const TRx = side2 === 'top' ? lengthPx : lengthPx - full2;
+                const BRx = side2 === 'top' ? lengthPx - full2 : lengthPx;
+
+                const topEdgeCm = (TRx - TLx) / PX_PER_CM;
+                const botEdgeCm = (BRx - BLx) / PX_PER_CM;
+
                 if (selectedLine.cut1 || selectedLine.cut2) {
-                    edgeInfoEl.innerHTML = `<b>Eksen:</b> ${lengthCm.toFixed(1)}cm &nbsp;|&nbsp; <b>Üst kenar:</b> ${topEdgeCm.toFixed(1)}cm &nbsp;|&nbsp; <b>Alt kenar:</b> ${botEdgeCm.toFixed(1)}cm`;
+                    edgeInfoEl.innerHTML = `<b>Üst kenar:</b> ${topEdgeCm.toFixed(1)}cm &nbsp;|&nbsp; <b>Alt kenar:</b> ${botEdgeCm.toFixed(1)}cm`;
                 } else {
                     edgeInfoEl.innerHTML = '';
                 }
@@ -494,19 +653,28 @@
             updatePanelValues();
             autosave();
             redraw();
+
+            // Uygulayınca panel küçülsün, parça net görünsün
+            panel.classList.add('collapsed');
+            updateToggleIcon();
         }
         document.getElementById('btn-apply').addEventListener('click', applyPanelChanges);
 
-        // Kesim yönünü tek tıkla ters çevir (kullanıcı hangi işareti gireceğini bilmek zorunda kalmasın)
+        // Bu uçta hangi köşenin sabit/uzun (eksen ölçüsü kadar) kalacağını değiştirir.
+        // Diyagonal parçalarda bir uç üstten, diğer uç alttan referans alınabilmeli.
         document.getElementById('btn-flip-cut1').addEventListener('click', () => {
             if (!selectedLine) return;
-            inputCut1.value = -(parseFloat(inputCut1.value) || 0);
-            applyPanelChanges();
+            selectedLine.cut1Side = (selectedLine.cut1Side === 'bottom') ? 'top' : 'bottom';
+            updatePanelValues();
+            autosave();
+            redraw();
         });
         document.getElementById('btn-flip-cut2').addEventListener('click', () => {
             if (!selectedLine) return;
-            inputCut2.value = -(parseFloat(inputCut2.value) || 0);
-            applyPanelChanges();
+            selectedLine.cut2Side = (selectedLine.cut2Side === 'bottom') ? 'top' : 'bottom';
+            updatePanelValues();
+            autosave();
+            redraw();
         });
 
         document.getElementById('btn-duplicate').addEventListener('click', () => {
@@ -519,6 +687,8 @@
                 thicknessCm: selectedLine.thicknessCm,
                 cut1: selectedLine.cut1,
                 cut2: selectedLine.cut2,
+                cut1Side: selectedLine.cut1Side || 'top',
+                cut2Side: selectedLine.cut2Side || 'top',
                 name: selectedLine.name || ''
             };
             lines.push(copy);
@@ -556,7 +726,7 @@
         }
 
         // --- PROFİL VE KALINLIK ÇİZİM FONKSİYONU ---
-        function drawProfile(line, isSelected) {
+        function drawProfile(line, isSelected, isGrouped) {
             let dx = line.x2 - line.x1;
             let dy = line.y2 - line.y1;
             let length = Math.hypot(dx, dy);
@@ -569,9 +739,16 @@
             let c1 = (line.cut1 || 0) * Math.PI / 180;
             let c2 = (line.cut2 || 0) * Math.PI / 180;
 
-            // Kesim açılarına göre alt/üst köşe çıkıntılarını hesapla (Matematiksel miter formülü)
-            let offset1 = (t / 2) * Math.tan(c1);
-            let offset2 = (t / 2) * Math.tan(c2);
+            // Kesim açılarına göre HER UÇ bağımsız olarak üst veya alt köşesini referans
+            // (sabit/uzun nokta) alabilir; diğer köşe içeri doğru kesilir.
+            let full1 = t * Math.tan(c1);
+            let full2 = t * Math.tan(c2);
+            const side1 = line.cut1Side || 'top';
+            const side2 = line.cut2Side || 'top';
+            let TLx = side1 === 'top' ? 0 : full1;
+            let BLx = side1 === 'top' ? full1 : 0;
+            let TRx = side2 === 'top' ? length : length - full2;
+            let BRx = side2 === 'top' ? length - full2 : length;
 
             ctx.save();
             ctx.translate(line.x1, line.y1); // Başlangıç noktasına git
@@ -579,16 +756,24 @@
 
             // Geometrik Parçayı (Poligon) Çiz
             ctx.beginPath();
-            ctx.moveTo(offset1, -t/2); // Sol Üst Köşe
-            ctx.lineTo(length + offset2, -t/2); // Sağ Üst Köşe
-            ctx.lineTo(length - offset2, t/2); // Sağ Alt Köşe
-            ctx.lineTo(-offset1, t/2); // Sol Alt Köşe
+            ctx.moveTo(TLx, -t/2); // Sol Üst Köşe
+            ctx.lineTo(TRx, -t/2); // Sağ Üst Köşe
+            ctx.lineTo(BRx, t/2); // Sağ Alt Köşe
+            ctx.lineTo(BLx, t/2); // Sol Alt Köşe
             ctx.closePath();
 
-            // Parça Renkleri
-            ctx.fillStyle = isSelected ? 'rgba(239, 35, 60, 0.3)' : 'rgba(141, 153, 174, 0.5)';
+            // Parça Renkleri: seçili = kırmızı, grup üyesi = mavi, normal = özelleştirilebilir renk
+            if (isSelected) {
+                ctx.fillStyle = 'rgba(239, 35, 60, 0.3)';
+                ctx.strokeStyle = '#d90429';
+            } else if (isGrouped) {
+                ctx.fillStyle = 'rgba(67, 97, 238, 0.35)';
+                ctx.strokeStyle = '#4361ee';
+            } else {
+                ctx.fillStyle = hexToRgba(pieceColor, 0.5);
+                ctx.strokeStyle = '#2b2d42';
+            }
             ctx.fill();
-            ctx.strokeStyle = isSelected ? '#d90429' : '#2b2d42';
             ctx.lineWidth = 2 / viewScale;
             ctx.stroke();
 
@@ -596,7 +781,7 @@
             ctx.beginPath();
             ctx.moveTo(0, 0);
             ctx.lineTo(length, 0);
-            ctx.strokeStyle = isSelected ? '#ef233c' : '#ffffff';
+            ctx.strokeStyle = isSelected ? '#ef233c' : (isGrouped ? '#1d3557' : '#ffffff');
             ctx.lineWidth = 1 / viewScale;
             ctx.setLineDash([5 / viewScale, 5 / viewScale]); // Kesik çizgi efekti
             ctx.stroke();
@@ -606,7 +791,7 @@
         }
 
         function drawGrid() {
-            ctx.strokeStyle = '#eef0f2';
+            ctx.strokeStyle = gridColor;
             ctx.lineWidth = 1 / viewScale;
             const gridSize = PX_PER_CM * 5;
 
@@ -780,12 +965,35 @@
             if (!isOpen) renderListPanel();
         });
 
-        // ===== MENÜ: KAYDET / YÜKLE / PNG =====
+        // ===== MENÜ: KAYDET / YÜKLE / PNG / RENKLER =====
         document.getElementById('btn-menu').addEventListener('click', (e) => {
             const mp = document.getElementById('menu-panel');
             const isOpen = mp.style.display === 'flex';
             mp.style.display = isOpen ? 'none' : 'flex';
             e.currentTarget.classList.toggle('active', !isOpen);
+        });
+
+        // Renk seçicileri kaydedilmiş temayla eşitle
+        const colorBgInput = document.getElementById('color-bg');
+        const colorGridInput = document.getElementById('color-grid');
+        const colorPieceInput = document.getElementById('color-piece');
+        colorBgInput.value = canvasBgColor;
+        colorGridInput.value = gridColor;
+        colorPieceInput.value = pieceColor;
+
+        colorBgInput.addEventListener('input', () => { canvasBgColor = colorBgInput.value; saveTheme(); redraw(); });
+        colorGridInput.addEventListener('input', () => { gridColor = colorGridInput.value; saveTheme(); redraw(); });
+        colorPieceInput.addEventListener('input', () => { pieceColor = colorPieceInput.value; saveTheme(); redraw(); });
+
+        document.getElementById('btn-reset-colors').addEventListener('click', () => {
+            canvasBgColor = '#ffffff';
+            gridColor = '#eef0f2';
+            pieceColor = '#8d99ae';
+            colorBgInput.value = canvasBgColor;
+            colorGridInput.value = gridColor;
+            colorPieceInput.value = pieceColor;
+            saveTheme();
+            redraw();
         });
 
         function exportJSON() {
@@ -833,9 +1041,9 @@
             e.target.value = ''; // aynı dosyayı tekrar seçebilmek için sıfırla
         });
 
-        function exportPNG() {
-            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
-
+        // Tüm çizimi (kalınlık/açı etiketleriyle) beyaz zeminli, sınırlara sığdırılmış bir
+        // offscreen tuvale render edip {dataUrl, w, h} döndürür. PNG ve PDF dışa aktarma bunu paylaşır.
+        function renderDrawingToDataURL() {
             let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
             lines.forEach(l => {
                 getProfileSnapPoints(l).forEach(p => {
@@ -847,9 +1055,9 @@
             const w = Math.ceil((maxX - minX) + pad * 2);
             const h = Math.ceil((maxY - minY) + pad * 2);
 
-            // Ekrandaki durumu geçici olarak sakla
             const origCtx = ctx, origScale = viewScale, origVX = viewX, origVY = viewY;
             const origSelected = selectedLine, origNearby = nearbySnapPoints, origActive = activeSnapPoint;
+            const origGuides = alignmentGuides;
 
             const off = document.createElement('canvas');
             off.width = w;
@@ -858,7 +1066,6 @@
             octx.fillStyle = '#ffffff';
             octx.fillRect(0, 0, w, h);
 
-            // Global çizim fonksiyonlarını (drawProfile/drawLabels) geçici olarak offscreen tuvale yönlendir
             ctx = octx;
             viewScale = 1;
             viewX = pad - minX;
@@ -866,15 +1073,15 @@
             selectedLine = null;
             nearbySnapPoints = [];
             activeSnapPoint = null;
+            alignmentGuides = [];
 
             drawWorld(() => {
-                lines.forEach(line => drawProfile(line, false));
+                lines.forEach(line => drawProfile(line, false, false));
             });
-            drawLabels(true); // parça detaylarını (kalınlık/açı) her zaman göster
+            drawLabels(true);
 
             const dataUrl = off.toDataURL('image/png');
 
-            // Ekran durumunu geri yükle
             ctx = origCtx;
             viewScale = origScale;
             viewX = origVX;
@@ -882,16 +1089,116 @@
             selectedLine = origSelected;
             nearbySnapPoints = origNearby;
             activeSnapPoint = origActive;
+            alignmentGuides = origGuides;
             redraw();
 
+            return { dataUrl, w, h };
+        }
+
+        function triggerDownload(href, filename) {
             const a = document.createElement('a');
-            a.href = dataUrl;
-            a.download = 'iskelet-cizim.png';
+            a.href = href;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
         }
+
+        function exportPNG() {
+            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
+            const { dataUrl } = renderDrawingToDataURL();
+            triggerDownload(dataUrl, 'iskelet-cizim.png');
+        }
         document.getElementById('btn-export-png').addEventListener('click', exportPNG);
+
+        function getJsPDF() {
+            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+            alert('PDF kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
+            return null;
+        }
+
+        function exportPdfDrawing() {
+            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
+            const JsPDFCtor = getJsPDF();
+            if (!JsPDFCtor) return;
+
+            const { dataUrl, w, h } = renderDrawingToDataURL();
+            const orientation = w >= h ? 'landscape' : 'portrait';
+            const doc = new JsPDFCtor({ orientation, unit: 'pt', format: 'a4' });
+            const pageW = doc.internal.pageSize.getWidth();
+            const pageH = doc.internal.pageSize.getHeight();
+            const margin = 24;
+            const availW = pageW - margin * 2;
+            const availH = pageH - margin * 2;
+            const scale = Math.min(availW / w, availH / h);
+            const imgW = w * scale;
+            const imgH = h * scale;
+            const x = (pageW - imgW) / 2;
+            const y = (pageH - imgH) / 2;
+
+            doc.setFontSize(11);
+            doc.text('İmalat / İskelet Çizimi', margin, margin - 6);
+            doc.addImage(dataUrl, 'PNG', x, y, imgW, imgH);
+            doc.save('iskelet-cizim.pdf');
+        }
+        document.getElementById('btn-export-pdf-drawing').addEventListener('click', exportPdfDrawing);
+
+        function exportPdfList() {
+            if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
+            const JsPDFCtor = getJsPDF();
+            if (!JsPDFCtor) return;
+
+            const doc = new JsPDFCtor({ unit: 'pt', format: 'a4' });
+            const margin = 40;
+            let y = margin;
+
+            doc.setFontSize(15);
+            doc.text('Malzeme Listesi', margin, y);
+            y += 22;
+            doc.setFontSize(10);
+            doc.setTextColor(120);
+            doc.text(new Date().toLocaleString('tr-TR'), margin, y);
+            doc.setTextColor(20);
+            y += 20;
+
+            doc.setFontSize(11);
+            let totalCm = 0;
+            const byThickness = {};
+
+            lines.forEach(line => {
+                let dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+                let lengthCm = Math.hypot(dx, dy) / PX_PER_CM;
+                totalCm += lengthCm;
+                const t = line.thicknessCm || 4;
+                byThickness[t] = (byThickness[t] || 0) + lengthCm;
+
+                const label = line.name ? `${line.name} (#${line.id})` : `#${line.id}`;
+                const row = `${label}  —  ${lengthCm.toFixed(1)}cm, kalınlık: ${t}cm, açılar: ${line.cut1 || 0}°/${line.cut2 || 0}°`;
+
+                if (y > doc.internal.pageSize.getHeight() - margin) { doc.addPage(); y = margin; }
+                doc.text(row, margin, y);
+                y += 16;
+            });
+
+            y += 10;
+            if (y > doc.internal.pageSize.getHeight() - margin - 60) { doc.addPage(); y = margin; }
+            doc.setDrawColor(200);
+            doc.line(margin, y, doc.internal.pageSize.getWidth() - margin, y);
+            y += 18;
+
+            doc.setFontSize(11);
+            Object.keys(byThickness).sort((a, b) => a - b).forEach(t => {
+                doc.text(`Kalınlık t:${t}cm toplam: ${byThickness[t].toFixed(1)}cm`, margin, y);
+                y += 16;
+            });
+
+            y += 6;
+            doc.setFontSize(12);
+            doc.text(`Genel Toplam: ${lines.length} parça, ${totalCm.toFixed(1)}cm (${(totalCm / 100).toFixed(2)}m)`, margin, y);
+
+            doc.save('malzeme-listesi.pdf');
+        }
+        document.getElementById('btn-export-pdf-list').addEventListener('click', exportPdfList);
 
         function copyListToClipboard() {
             if (lines.length === 0) { alert('Kopyalanacak parça yok.'); return; }
@@ -934,17 +1241,44 @@
         function redraw() {
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = canvasBgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             drawWorld(() => {
                 drawGrid();
-                lines.forEach(line => drawProfile(line, line === selectedLine));
+                lines.forEach(line => drawProfile(line, line === selectedLine, groupSelectedIds.has(line.id)));
                 drawSnapPreview();
                 drawSnapIndicator();
             });
 
+            drawAlignmentGuides();
             drawLabels();
             updateZoomIndicator();
             renderListPanel();
+        }
+
+        // Hizalama kılavuz çizgilerini tam ekran (dünya dönüşümünden bağımsız) çizer
+        function drawAlignmentGuides() {
+            if (!alignmentGuides.length) return;
+            ctx.save();
+            ctx.strokeStyle = '#ff006e';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 5]);
+            alignmentGuides.forEach(g => {
+                ctx.beginPath();
+                if (g.type === 'y') {
+                    const sy = viewY + g.value * viewScale;
+                    ctx.moveTo(0, sy);
+                    ctx.lineTo(canvas.width, sy);
+                } else {
+                    const sx = viewX + g.value * viewScale;
+                    ctx.moveTo(sx, 0);
+                    ctx.lineTo(sx, canvas.height);
+                }
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+            ctx.restore();
         }
 
         // Event Listeners
@@ -974,6 +1308,23 @@
         }
         document.getElementById('btn-undo').addEventListener('click', undoLast);
 
+        // ===== HASSAS KAYDIRMA (yukarı/aşağı/sol/sağ, tam cm ölçüsüyle) =====
+        function nudgeSelected(dxCm, dyCm) {
+            if (!selectedLine) return;
+            const dx = dxCm * PX_PER_CM, dy = dyCm * PX_PER_CM;
+            selectedLine.x1 += dx; selectedLine.y1 += dy;
+            selectedLine.x2 += dx; selectedLine.y2 += dy;
+            redraw();
+            autosave();
+        }
+        function getNudgeAmount() {
+            return parseFloat(document.getElementById('nudge-amount').value) || 1;
+        }
+        document.getElementById('nudge-up').addEventListener('click', () => nudgeSelected(0, -getNudgeAmount()));
+        document.getElementById('nudge-down').addEventListener('click', () => nudgeSelected(0, getNudgeAmount()));
+        document.getElementById('nudge-left').addEventListener('click', () => nudgeSelected(-getNudgeAmount(), 0));
+        document.getElementById('nudge-right').addEventListener('click', () => nudgeSelected(getNudgeAmount(), 0));
+
         // ===== KLAVYE KISAYOLLARI (masaüstü) =====
         document.addEventListener('keydown', (e) => {
             const tag = (e.target && e.target.tagName) || '';
@@ -988,5 +1339,12 @@
             } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
                 e.preventDefault();
                 if (selectedLine) document.getElementById('btn-duplicate').click();
+            } else if (selectedLine && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+                const amt = e.shiftKey ? getNudgeAmount() * 5 : getNudgeAmount();
+                if (e.key === 'ArrowUp') nudgeSelected(0, -amt);
+                else if (e.key === 'ArrowDown') nudgeSelected(0, amt);
+                else if (e.key === 'ArrowLeft') nudgeSelected(-amt, 0);
+                else if (e.key === 'ArrowRight') nudgeSelected(amt, 0);
             }
         });

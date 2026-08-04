@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>İmalat ve İskelet Çizim Aracı (Kalınlık + Açı)</title>
     <link rel="stylesheet" href="CssJS/cizim.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
     
     <div id="properties-panel">
-        <div id="panel-header">
+        <div id="panel-header" style="cursor:pointer;">
             <span id="panel-title">Parça</span>
             <div style="display:flex; gap:6px;">
                 <button id="btn-duplicate" class="panel-icon-btn" title="Parçayı çoğalt">🧬</button>
@@ -41,20 +42,36 @@
             <label>Başlangıç Kesimi (°):</label>
             <div style="display:flex; gap:4px; min-width:0;">
                 <input type="number" id="input-cut1" value="0" title="0° Düz kesimdir. 45° gönye kesimidir." style="flex:1; min-width:0;">
-                <button type="button" id="btn-flip-cut1" class="panel-icon-btn" title="Yönü ters çevir" style="flex-shrink:0;">⇄</button>
+                <button type="button" id="btn-flip-cut1" class="panel-icon-btn" title="Bu uçta sabit/uzun kalacak köşeyi değiştir" style="flex-shrink:0; min-width:44px;">⬆Üst</button>
             </div>
         </div>
         <div class="input-group">
             <label>Bitiş Kesimi (°):</label>
             <div style="display:flex; gap:4px; min-width:0;">
                 <input type="number" id="input-cut2" value="0" style="flex:1; min-width:0;">
-                <button type="button" id="btn-flip-cut2" class="panel-icon-btn" title="Yönü ters çevir" style="flex-shrink:0;">⇄</button>
+                <button type="button" id="btn-flip-cut2" class="panel-icon-btn" title="Bu uçta sabit/uzun kalacak köşeyi değiştir" style="flex-shrink:0; min-width:44px;">⬆Üst</button>
             </div>
         </div>
         <div class="input-group span-all">
-            <span style="font-size:10.5px; color:#6b7280;">Kesim yönü ters göründüyse ⇄ butonuyla anında çevirebilirsin.</span>
+            <span style="font-size:10.5px; color:#6b7280;">Eksen ölçün her zaman <b>Üst/Alt</b> butonuyla seçtiğin köşede korunur. Diyagonal parçalarda iki ucun farklı köşeden (biri üst, biri alt) sabitlenmesi gerekebilir.</span>
         </div>
         <div id="edge-info" class="input-group span-all" style="font-size:11px; color:#374151; background:#f8f9fa; padding:6px 8px; border-radius:6px;"></div>
+
+        <div class="input-group span-all">
+            <label>Hassas Kaydırma:</label>
+            <div style="display:flex; align-items:center; gap:6px;">
+                <input type="number" id="nudge-amount" value="1" step="0.1" style="width:55px; flex-shrink:0;" title="Kaydırma miktarı (cm)">
+                <span style="font-size:11px; color:#6b7280;">cm</span>
+                <div style="display:grid; grid-template-columns:repeat(3,26px); grid-template-rows:repeat(2,26px); gap:2px; margin-left:auto;">
+                    <div></div>
+                    <button type="button" id="nudge-up" class="panel-icon-btn" style="padding:0;">↑</button>
+                    <div></div>
+                    <button type="button" id="nudge-left" class="panel-icon-btn" style="padding:0;">←</button>
+                    <button type="button" id="nudge-down" class="panel-icon-btn" style="padding:0;">↓</button>
+                    <button type="button" id="nudge-right" class="panel-icon-btn" style="padding:0;">→</button>
+                </div>
+            </div>
+        </div>
 
         <div id="panel-actions" style="display:flex; gap:6px; margin-top:5px;">
             <button id="btn-apply">Uygula</button>
@@ -76,7 +93,7 @@
     <div id="toolbar">
         <button id="btn-draw" class="mode-btn active">✏️ Çiz</button>
         <button id="btn-move" class="mode-btn">✋ Seç/Taşı</button>
-        <button id="btn-pan" class="mode-btn">🖐 Kaydır</button>
+        <button id="btn-group" class="mode-btn" title="Birden fazla parçayı grup halinde taşı">👥 Grup</button>
         <button id="btn-delete-toolbar" title="Seçili parçayı sil" style="background:#ef233c;">🗑 Sil</button>
         <button id="btn-undo">Geri</button>
         <button id="btn-clear">Temizle</button>
@@ -84,7 +101,7 @@
         <span id="zoom-indicator" title="Görünümü sıfırlamak için tıklayın">100%</span>
         <button id="btn-zoom-in" title="Yakınlaştır">➕</button>
         <button id="btn-list" class="toggle-btn">📋 Liste</button>
-        <button id="btn-menu" class="toggle-btn" title="Kaydet / Yükle / PNG">☰ Menü</button>
+        <button id="btn-menu" class="toggle-btn" title="Kaydet / Yükle / PNG / Ayarlar">☰ Menü</button>
     </div>
 
     <div id="menu-panel">
@@ -92,11 +109,30 @@
         <button id="btn-export-json">📤 JSON Dışa Aktar</button>
         <button id="btn-import-json">📥 JSON İçe Aktar</button>
         <button id="btn-export-png">🖼️ PNG Olarak İndir</button>
+        <button id="btn-export-pdf-drawing">📄 Çizimi PDF İndir</button>
+        <button id="btn-export-pdf-list">📄 Listeyi PDF İndir</button>
         <input type="file" id="file-import-input" accept="application/json" style="display:none;">
+
+        <div class="divider"></div>
+        <strong style="font-size:12px; color:#2b2d42;">Görünüm Renkleri</strong>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:11px; color:#374151;">Arka plan</label>
+            <input type="color" id="color-bg" value="#ffffff" style="width:36px; height:26px; padding:0; border:none; background:none;">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:11px; color:#374151;">Izgara çizgisi</label>
+            <input type="color" id="color-grid" value="#eef0f2" style="width:36px; height:26px; padding:0; border:none; background:none;">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <label style="font-size:11px; color:#374151;">Parça rengi</label>
+            <input type="color" id="color-piece" value="#8d99ae" style="width:36px; height:26px; padding:0; border:none; background:none;">
+        </div>
+        <button id="btn-reset-colors" class="panel-icon-btn" style="width:100%;">Renkleri Sıfırla</button>
     </div>
 
     <canvas id="canvas"></canvas>
 
+    
    <script src="CssJS/cizim.js"></script>
 </body>
 </html>
