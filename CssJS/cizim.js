@@ -1,10 +1,11 @@
-const canvas = document.getElementById('canvas');
+ const canvas = document.getElementById('canvas');
         let ctx = canvas.getContext('2d');
         const panel = document.getElementById('properties-panel');
 
         const inputLength = document.getElementById('input-length');
         const inputAngle = document.getElementById('input-angle');
         const inputThickness = document.getElementById('input-thickness');
+        const inputDepth = document.getElementById('input-depth');
         const inputCut1 = document.getElementById('input-cut1');
         const inputCut2 = document.getElementById('input-cut2');
         const inputName = document.getElementById('input-name');
@@ -12,6 +13,99 @@ const canvas = document.getElementById('canvas');
         const PX_PER_CM = 10;
         const SNAP_TOLERANCE_PX = 25;   // ekran pikseli cinsinden - zoom'dan bağımsız hissettirir
         const SNAP_PREVIEW_PX = 65;     // yakındaki olası noktaları önizleme yarıçapı
+
+        // 3D durum değişkenleri (resizeCanvas gibi erken çalışan fonksiyonlar bunlara erişebildiği
+        // için EN BAŞTA tanımlanmalı, aksi halde "before initialization" hatası tüm scripti çökertir)
+        let is3DMode = false;
+        let scene3D, camera3D, renderer3D, controls3D, animId3D = null;
+
+        // ===== DIŞ KÜTÜPHANE YÜKLEYİCİ (three.js / OrbitControls / jsPDF) =====
+        // Kütüphaneler artık <head> içinde senkron (bloklayıcı) değil; ihtiyaç anında,
+        // birden fazla CDN denenerek ve hata durumunda yeniden denenebilir şekilde yüklenir.
+        // Bu sayede: (1) sayfa açılışı yavaş/engellenen bir CDN yüzünden beyaz ekranda takılmaz,
+        // (2) bir CDN başarısız olursa otomatik olarak yedek CDN denenir,
+        // (3) kullanıcı sayfayı yenilemeden "Tekrar Dene" ile kurtarabilir.
+        const LIB_URLS = {
+            three: [
+                'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+                'https://unpkg.com/three@0.128.0/build/three.min.js'
+            ],
+            orbitControls: [
+                'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/examples/js/controls/OrbitControls.js',
+                'https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js'
+            ],
+            jspdf: [
+                'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+                'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
+                'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
+            ]
+        };
+
+        function loadScriptOnce(url) {
+            return new Promise((resolve, reject) => {
+                const existing = document.querySelector(`script[data-lib-src="${url}"]`);
+                if (existing) { existing.addEventListener('load', resolve); existing.addEventListener('error', reject); return; }
+                const s = document.createElement('script');
+                s.src = url;
+                s.async = true;
+                s.dataset.libSrc = url;
+                s.onload = () => resolve();
+                s.onerror = () => { s.remove(); reject(new Error('load failed: ' + url)); };
+                document.head.appendChild(s);
+            });
+        }
+
+        // Bir kütüphaneyi sırayla birkaç CDN adresinden dener; biri başarılı olursa durur.
+        async function loadFromCdnList(urls) {
+            let lastErr = null;
+            for (const url of urls) {
+                try { await loadScriptOnce(url); return true; } catch (e) { lastErr = e; }
+            }
+            throw lastErr || new Error('Tüm kaynaklar başarısız oldu');
+        }
+
+        let threeLoadPromise = null;
+        function ensureThreeLoaded() {
+            if (typeof THREE !== 'undefined' && THREE.OrbitControls) return Promise.resolve(true);
+            if (threeLoadPromise) return threeLoadPromise;
+            threeLoadPromise = (async () => {
+                if (typeof THREE === 'undefined') {
+                    await loadFromCdnList(LIB_URLS.three);
+                }
+                if (typeof THREE !== 'undefined' && !THREE.OrbitControls) {
+                    await loadFromCdnList(LIB_URLS.orbitControls);
+                }
+                if (typeof THREE === 'undefined' || !THREE.OrbitControls) {
+                    throw new Error('THREE veya OrbitControls yüklenemedi');
+                }
+                return true;
+            })();
+            // Başarısız olursa bir sonraki denemede tekrar yüklenebilsin diye sıfırla
+            threeLoadPromise.catch(() => { threeLoadPromise = null; });
+            return threeLoadPromise;
+        }
+
+        let jspdfLoadPromise = null;
+        function ensureJsPdfLoaded() {
+            if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(true);
+            if (jspdfLoadPromise) return jspdfLoadPromise;
+            jspdfLoadPromise = (async () => {
+                await loadFromCdnList(LIB_URLS.jspdf);
+                if (!(window.jspdf && window.jspdf.jsPDF)) throw new Error('jsPDF yüklenemedi');
+                return true;
+            })();
+            jspdfLoadPromise.catch(() => { jspdfLoadPromise = null; });
+            return jspdfLoadPromise;
+        }
+
+        // Sayfa tamamen yüklendikten (ilk çizim ekranı hazır olduktan) sonra, arka planda
+        // sessizce three.js'i önceden yüklemeyi dene; kullanıcı 3D'ye bastığında genelde
+        // zaten hazır olur. Başarısız olursa sorun değil - 3D butonuna basınca tekrar denenir.
+        window.addEventListener('load', () => {
+            setTimeout(() => { ensureThreeLoaded().catch(() => {}); }, 300);
+        });
 
         let lines = [];
         let nextId = 1;
@@ -90,6 +184,7 @@ const canvas = document.getElementById('canvas');
                 canvas.height = window.innerHeight;
             }
             redraw();
+            if (typeof resize3D === 'function') resize3D();
         }
         window.addEventListener('resize', resizeCanvas);
         // iOS Safari'de adres çubuğu açılıp kapandığında gerçek görünür alan
@@ -580,6 +675,10 @@ const canvas = document.getElementById('canvas');
         // Mobilde küçük oka basmak yerine tüm başlık şeridine dokunarak da aç/kapat yapılabilsin
         document.getElementById('panel-header').addEventListener('click', toggleCollapse);
         document.getElementById('btn-duplicate').addEventListener('click', (e) => e.stopPropagation());
+        document.getElementById('btn-close-panel').addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectLine(null);
+        });
 
         function updatePanelValues() {
             if(!selectedLine) return;
@@ -595,6 +694,7 @@ const canvas = document.getElementById('canvas');
             inputLength.value = lengthCm.toFixed(1);
             inputAngle.value = Math.round(angle);
             inputThickness.value = selectedLine.thicknessCm || 4;
+            inputDepth.value = selectedLine.depthCm || '';
             inputCut1.value = selectedLine.cut1 || 0;
             inputCut2.value = selectedLine.cut2 || 0;
             inputName.value = selectedLine.name || '';
@@ -639,13 +739,33 @@ const canvas = document.getElementById('canvas');
         function applyPanelChanges() {
             if (!selectedLine) return;
 
-            let newLengthPx = parseFloat(inputLength.value) * PX_PER_CM;
-            let newAngle = parseFloat(inputAngle.value) * (Math.PI / 180);
+            const parsedLength = parseFloat(inputLength.value);
+            const parsedAngle = parseFloat(inputAngle.value);
+
+            // Eksen uzunluğu veya açı boş/geçersiz girilirse NaN oluşup parça koordinatları bozuluyor
+            // ve parça tuvalden tamamen kayboluyordu. Artık geçersiz değerde önceki geçerli
+            // değere geri dönüyor ve kullanıcı uyarılıyor, sessizce veri bozulmuyor.
+            let hadInvalidInput = false;
+            let newLengthPx, newAngle;
+            if (isNaN(parsedLength) || parsedLength <= 0) {
+                hadInvalidInput = true;
+                newLengthPx = Math.hypot(selectedLine.x2 - selectedLine.x1, selectedLine.y2 - selectedLine.y1);
+            } else {
+                newLengthPx = parsedLength * PX_PER_CM;
+            }
+            if (isNaN(parsedAngle)) {
+                hadInvalidInput = true;
+                newAngle = Math.atan2(selectedLine.y2 - selectedLine.y1, selectedLine.x2 - selectedLine.x1);
+            } else {
+                newAngle = parsedAngle * (Math.PI / 180);
+            }
 
             selectedLine.x2 = selectedLine.x1 + newLengthPx * Math.cos(newAngle);
             selectedLine.y2 = selectedLine.y1 + newLengthPx * Math.sin(newAngle);
 
-            selectedLine.thicknessCm = parseFloat(inputThickness.value) || 0;
+            selectedLine.thicknessCm = parseFloat(inputThickness.value) || selectedLine.thicknessCm || 4;
+            const parsedDepth = parseFloat(inputDepth.value);
+            selectedLine.depthCm = (!isNaN(parsedDepth) && parsedDepth > 0) ? parsedDepth : null;
             selectedLine.cut1 = parseFloat(inputCut1.value) || 0;
             selectedLine.cut2 = parseFloat(inputCut2.value) || 0;
             selectedLine.name = (inputName.value || '').trim();
@@ -654,9 +774,18 @@ const canvas = document.getElementById('canvas');
             autosave();
             redraw();
 
-            // Uygulayınca panel küçülsün, parça net görünsün
-            panel.classList.add('collapsed');
-            updateToggleIcon();
+            if (hadInvalidInput) {
+                alert('Uzunluk/Açı geçersiz girildi, önceki değer korundu.');
+            } else {
+                // Paneli kapatmadan/kucultmeden kısa bir "uygulandı" onayı göster, kullanıcı
+                // panelin kaybolduğunu düşünüp sayfayı yenilemek zorunda kalmasın.
+                const titleEl = document.getElementById('panel-title');
+                if (titleEl) {
+                    const original = titleEl.textContent;
+                    titleEl.textContent = '✓ Uygulandı';
+                    setTimeout(() => { if (selectedLine) updatePanelValues(); else titleEl.textContent = original; }, 700);
+                }
+            }
         }
         document.getElementById('btn-apply').addEventListener('click', applyPanelChanges);
 
@@ -685,6 +814,7 @@ const canvas = document.getElementById('canvas');
                 x1: selectedLine.x1 + offset, y1: selectedLine.y1 + offset,
                 x2: selectedLine.x2 + offset, y2: selectedLine.y2 + offset,
                 thicknessCm: selectedLine.thicknessCm,
+                depthCm: selectedLine.depthCm || null,
                 cut1: selectedLine.cut1,
                 cut2: selectedLine.cut2,
                 cut1Side: selectedLine.cut1Side || 'top',
@@ -981,7 +1111,12 @@ const canvas = document.getElementById('canvas');
         colorGridInput.value = gridColor;
         colorPieceInput.value = pieceColor;
 
-        colorBgInput.addEventListener('input', () => { canvasBgColor = colorBgInput.value; saveTheme(); redraw(); });
+        colorBgInput.addEventListener('input', () => {
+            canvasBgColor = colorBgInput.value;
+            saveTheme();
+            redraw();
+            if (scene3D) scene3D.background = new THREE.Color(canvasBgColor);
+        });
         colorGridInput.addEventListener('input', () => { gridColor = colorGridInput.value; saveTheme(); redraw(); });
         colorPieceInput.addEventListener('input', () => { pieceColor = colorPieceInput.value; saveTheme(); redraw(); });
 
@@ -1111,15 +1246,20 @@ const canvas = document.getElementById('canvas');
         }
         document.getElementById('btn-export-png').addEventListener('click', exportPNG);
 
-        function getJsPDF() {
-            if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-            alert('PDF kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
-            return null;
+        async function getJsPDF() {
+            try {
+                await ensureJsPdfLoaded();
+                return window.jspdf.jsPDF;
+            } catch (err) {
+                console.error('jsPDF yüklenemedi:', err);
+                alert('PDF kütüphanesi yüklenemedi. İnternet bağlantınızı kontrol edip tekrar deneyin.');
+                return null;
+            }
         }
 
-        function exportPdfDrawing() {
+        async function exportPdfDrawing() {
             if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
-            const JsPDFCtor = getJsPDF();
+            const JsPDFCtor = await getJsPDF();
             if (!JsPDFCtor) return;
 
             const { dataUrl, w, h } = renderDrawingToDataURL();
@@ -1143,9 +1283,9 @@ const canvas = document.getElementById('canvas');
         }
         document.getElementById('btn-export-pdf-drawing').addEventListener('click', exportPdfDrawing);
 
-        function exportPdfList() {
+        async function exportPdfList() {
             if (lines.length === 0) { alert('Dışa aktarılacak parça yok.'); return; }
-            const JsPDFCtor = getJsPDF();
+            const JsPDFCtor = await getJsPDF();
             if (!JsPDFCtor) return;
 
             const doc = new JsPDFCtor({ unit: 'pt', format: 'a4' });
@@ -1324,6 +1464,249 @@ const canvas = document.getElementById('canvas');
         document.getElementById('nudge-down').addEventListener('click', () => nudgeSelected(0, getNudgeAmount()));
         document.getElementById('nudge-left').addEventListener('click', () => nudgeSelected(-getNudgeAmount(), 0));
         document.getElementById('nudge-right').addEventListener('click', () => nudgeSelected(getNudgeAmount(), 0));
+
+        // ===== 3D GÖRÜNÜM =====
+        let pieceGroup3D = null;
+        const canvas3d = document.getElementById('canvas3d');
+
+        let webglContextLost = false;
+
+        function disposeRenderer3D() {
+            try { if (controls3D) controls3D.dispose(); } catch (e) { /* yoksay */ }
+            try { if (renderer3D) renderer3D.dispose(); } catch (e) { /* yoksay */ }
+            scene3D = null; camera3D = null; renderer3D = null; controls3D = null; pieceGroup3D = null;
+        }
+
+        // Ekran kartı/tarayıcı WebGL bağlamını (context) geri alabilir - sekme uzun süre arka
+        // planda kalınca, GPU sürücüsü değişince veya çok fazla WebGL bağlamı açıkken bu olur.
+        // Bu durumda sahne "donuk" kalır; renderer3D hâlâ var göründüğü için init3DIfNeeded()
+        // her şeyin yolunda olduğunu sanıp yeniden kurmaz. Bunu önlemek için bağlam kaybını
+        // dinleyip renderer'ı geçersiz kılıyoruz, böylece bir sonraki "3D" tıklamasında sıfırdan
+        // ve sağlıklı şekilde yeniden kurulur - sayfayı yenilemeye gerek kalmaz.
+        canvas3d.addEventListener('webglcontextlost', (e) => {
+            e.preventDefault();
+            webglContextLost = true;
+            disposeRenderer3D();
+            if (is3DMode) {
+                if (animId3D) { cancelAnimationFrame(animId3D); animId3D = null; }
+                document.body.classList.add('loading-3d-active');
+            }
+        });
+        canvas3d.addEventListener('webglcontextrestored', () => {
+            webglContextLost = false;
+            if (is3DMode) {
+                // Sahneyi ve döngüyü sıfırdan, sessizce yeniden kur
+                setTimeout(() => {
+                    try {
+                        if (init3DIfNeeded()) {
+                            scene3D.background = new THREE.Color(canvasBgColor);
+                            build3DScene();
+                            resize3D();
+                            document.body.classList.remove('loading-3d-active');
+                            if (animId3D) cancelAnimationFrame(animId3D);
+                            animate3D();
+                        }
+                    } catch (err) {
+                        document.body.classList.remove('loading-3d-active');
+                        alert('3D görünüm kurtarılamadı, lütfen "3D" butonuna tekrar basın.');
+                        exit3D();
+                    }
+                }, 50);
+            }
+        });
+
+        function init3DIfNeeded() {
+            if (renderer3D) return true;
+            if (typeof THREE === 'undefined' || !THREE.OrbitControls) return false;
+
+            try {
+                scene3D = new THREE.Scene();
+                scene3D.background = new THREE.Color(canvasBgColor);
+
+                camera3D = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100000);
+
+                renderer3D = new THREE.WebGLRenderer({ canvas: canvas3d, antialias: true, powerPreference: 'default', failIfMajorPerformanceCaveat: false });
+                renderer3D.setPixelRatio(window.devicePixelRatio || 1);
+
+                controls3D = new THREE.OrbitControls(camera3D, renderer3D.domElement);
+                controls3D.enableDamping = true;
+                controls3D.dampingFactor = 0.08;
+
+                const ambient = new THREE.AmbientLight(0xffffff, 0.65);
+                scene3D.add(ambient);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+                dirLight.position.set(200, 400, 300);
+                scene3D.add(dirLight);
+                const dirLight2 = new THREE.DirectionalLight(0xffffff, 0.3);
+                dirLight2.position.set(-200, -100, -300);
+                scene3D.add(dirLight2);
+
+                pieceGroup3D = new THREE.Group();
+                scene3D.add(pieceGroup3D);
+
+                return true;
+            } catch (err) {
+                // WebGL bağlamı hiç kurulamadıysa (ör. tarayıcı/GPU desteklemiyor) temiz şekilde geri dön
+                disposeRenderer3D();
+                console.error('3D sahne kurulamadı:', err);
+                return false;
+            }
+        }
+
+        // 2D parçadan (mevcut üst/alt köşe referans mantığıyla birebir aynı) 3D katı bir kutu (bar) üretir
+        function build3DScene() {
+            // Önceki parçaları temizle (her mesh'in kendi geometrisini/materyalini VE üstündeki
+            // kesişim/kenar çizgisi (edge) geometrisini de temizle - aksi halde bellek sızıntısı olur)
+            while (pieceGroup3D.children.length) {
+                const child = pieceGroup3D.children.pop();
+                child.children.forEach(sub => { if (sub.geometry) sub.geometry.dispose(); if (sub.material) sub.material.dispose(); });
+                child.geometry.dispose();
+                child.material.dispose();
+            }
+
+            if (lines.length === 0) return;
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+            lines.forEach(line => {
+                const dx = line.x2 - line.x1, dy = line.y2 - line.y1;
+                const lengthCm = Math.hypot(dx, dy) / PX_PER_CM;
+                const angle = Math.atan2(dy, dx);
+                const tCm = line.thicknessCm || 4;
+                // Derinlik (opsiyonel): boş bırakılırsa profil kalınlığıyla aynı olur (eski davranış korunur)
+                const depthCm = (line.depthCm && line.depthCm > 0) ? line.depthCm : tCm;
+                const c1 = (line.cut1 || 0) * Math.PI / 180;
+                const c2 = (line.cut2 || 0) * Math.PI / 180;
+                const full1 = tCm * Math.tan(c1);
+                const full2 = tCm * Math.tan(c2);
+                const side1 = line.cut1Side || 'top';
+                const side2 = line.cut2Side || 'top';
+
+                const TLx = side1 === 'top' ? 0 : full1;
+                const BLx = side1 === 'top' ? full1 : 0;
+                const TRx = side2 === 'top' ? lengthCm : lengthCm - full2;
+                const BRx = side2 === 'top' ? lengthCm - full2 : lengthCm;
+
+                // Aynı miter kesim şeklini (2D'deki poligonla birebir) bir THREE.Shape olarak kur
+                const shape = new THREE.Shape();
+                shape.moveTo(TLx, tCm / 2);
+                shape.lineTo(TRx, tCm / 2);
+                shape.lineTo(BRx, -tCm / 2);
+                shape.lineTo(BLx, -tCm / 2);
+                shape.closePath();
+
+                const geometry = new THREE.ExtrudeGeometry(shape, { depth: depthCm, bevelEnabled: false });
+                // Her parça kendi materyal örneğini alır (paylaşılan tek materyal, parçalar birbirine
+                // değince tek bir bütün gibi görünmesine ve temizlenirken çakışmalara yol açıyordu)
+                const material = new THREE.MeshPhongMaterial({ color: new THREE.Color(pieceColor), shininess: 20 });
+                const mesh = new THREE.Mesh(geometry, material);
+
+                // 2D dünya (x1,y1) noktasına taşı; ekran Y'si aşağı doğru olduğundan 3D'de yukarı olsun diye ters çeviriyoruz
+                mesh.position.set(line.x1 / PX_PER_CM, -line.y1 / PX_PER_CM, -depthCm / 2);
+                mesh.rotation.z = -angle;
+
+                // Kesişim/birleşme yerlerinin görünmesi için her parçanın kenarlarına ince bir
+                // çizgi (edge outline) ekle. Bitişik iki parça aynı renkte olsa bile, aralarındaki
+                // sınır bu sayede her zaman ince bir çizgi olarak görünür.
+                const edgeGeometry = new THREE.EdgesGeometry(geometry, 15);
+                const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x1a1a2e });
+                const edgeLines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
+                mesh.add(edgeLines);
+
+                pieceGroup3D.add(mesh);
+
+                const wx1 = line.x1 / PX_PER_CM, wy1 = -line.y1 / PX_PER_CM;
+                const wx2 = line.x2 / PX_PER_CM, wy2 = -line.y2 / PX_PER_CM;
+                minX = Math.min(minX, wx1, wx2); maxX = Math.max(maxX, wx1, wx2);
+                minY = Math.min(minY, wy1, wy2); maxY = Math.max(maxY, wy1, wy2);
+            });
+
+            // Tüm parçaları kapsayacak şekilde kamerayı ve kontrol merkezini ayarla
+            const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+            const spanX = Math.max(20, maxX - minX), spanY = Math.max(20, maxY - minY);
+            const span = Math.max(spanX, spanY);
+
+            controls3D.target.set(cx, cy, 0);
+            camera3D.position.set(cx + span * 0.7, cy - span * 0.7, span * 0.9);
+            camera3D.near = span / 100;
+            camera3D.far = span * 20;
+            camera3D.updateProjectionMatrix();
+            controls3D.update();
+        }
+
+        function resize3D() {
+            if (!renderer3D) return;
+            const w = window.innerWidth, h = window.innerHeight;
+            camera3D.aspect = w / h;
+            camera3D.updateProjectionMatrix();
+            renderer3D.setSize(w, h);
+        }
+
+        function animate3D() {
+            if (!is3DMode) return;
+            try {
+                controls3D.update();
+                renderer3D.render(scene3D, camera3D);
+                animId3D = requestAnimationFrame(animate3D);
+            } catch (err) {
+                // Render sırasında beklenmedik bir hata (ör. bağlam kaybı) olursa döngüyü
+                // sessizce durdurmak yerine 3D'den çık ve kullanıcıyı bilgilendir.
+                console.error('3D render hatası:', err);
+                animId3D = null;
+                alert('3D görünümde bir sorun oluştu, 2D moduna dönülüyor.');
+                exit3D();
+            }
+        }
+
+        let enter3DInProgress = false;
+
+        function enter3D() {
+            if (lines.length === 0) { alert('3D görünüm için önce en az bir parça çiz.'); return; }
+            if (enter3DInProgress) return;
+            enter3DInProgress = true;
+
+            document.body.classList.add('loading-3d-active');
+
+            ensureThreeLoaded()
+                .then(() => {
+                    if (!init3DIfNeeded()) throw new Error('3D sahnesi kurulamadı');
+
+                    is3DMode = true;
+                    selectLine(null);
+                    document.body.classList.add('mode-3d');
+
+                    scene3D.background = new THREE.Color(canvasBgColor);
+                    build3DScene();
+                    resize3D();
+                    if (animId3D) cancelAnimationFrame(animId3D);
+                    animate3D();
+                })
+                .catch((err) => {
+                    console.error('3D başlatılamadı:', err);
+                    is3DMode = false;
+                    document.body.classList.remove('mode-3d');
+                    alert('3D görünüm yüklenemedi. İnternet bağlantınızı kontrol edip "3D" butonuna tekrar basarak deneyebilirsiniz.');
+                })
+                .finally(() => {
+                    document.body.classList.remove('loading-3d-active');
+                    enter3DInProgress = false;
+                });
+        }
+
+        function exit3D() {
+            is3DMode = false;
+            if (animId3D) { cancelAnimationFrame(animId3D); animId3D = null; }
+
+            // Tek kaynak: body class. canvas/toolbar/properties-panel/list-panel/menu-panel
+            // hiçbirinin .style.display'i JS tarafından ayarlanmıyor, dolayısıyla panel
+            // artık kalıcı olarak "gizli" kilitlenemiyor.
+            document.body.classList.remove('mode-3d');
+
+            resizeCanvas();
+        }
+
+        document.getElementById('btn-3d').addEventListener('click', enter3D);
+        document.getElementById('btn-exit-3d').addEventListener('click', exit3D);
 
         // ===== KLAVYE KISAYOLLARI (masaüstü) =====
         document.addEventListener('keydown', (e) => {

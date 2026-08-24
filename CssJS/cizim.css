@@ -1,4 +1,22 @@
- html, body {
+ /* ===== 3D MOD GEÇİŞİ: class tabanlı, inline style KULLANILMIYOR =====
+           Önceden enter3D()/exit3D() ilgili elemanlara doğrudan element.style.display
+           atıyordu. exit3D() bunların bir kısmını (properties/list/menu panel) geri
+           almadığı için o panel kalıcı olarak "display:none" inline stille kilitleniyor,
+           CSS class'ları (panel-visible vb.) artık hiçbir işe yaramıyordu - kullanıcı
+           sayfayı yenilemek zorunda kalıyordu. Artık tek kaynak <body class="mode-3d">
+           ve aşağıdaki kurallar; JS hiçbir zaman bu elemanların .style.display'ine dokunmuyor. */
+        #canvas3d { display: none; }
+        #loading-3d { display: none; }
+        #btn-exit-3d { display: none; }
+        body.mode-3d #canvas,
+        body.mode-3d #toolbar,
+        body.mode-3d #properties-panel,
+        body.mode-3d #list-panel,
+        body.mode-3d #menu-panel { display: none !important; }
+        body.mode-3d #canvas3d { display: block !important; }
+        body.mode-3d #btn-exit-3d { display: block !important; }
+        body.loading-3d-active #loading-3d { display: flex !important; }
+        html, body {
             height: 100%;
             overscroll-behavior: none;
         }
