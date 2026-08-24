@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Süpürgelik Gönye Kesim Hesaplayıcı</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="CssJS/pervaz.css">
+</head>
+<body>
+
+<header>
+  <h1><i class="fa-solid fa-ruler-combined"></i>  Süpürgelik Gönye Kesim Hesaplayıcı</h1>
+  <span>Kat ekle, sol/sağ yükseklikleri bağımsız ayarla, duvara dokunup uzunluk değiştir</span>
+</header>
+
+<div class="disclaimer">
+  <i class="fa-solid fa-triangle-exclamation"></i>
+  <span>Çizimdeki görsel oranlar temsilidir — gerçek uzunluk ve açılar yalnızca girdiğiniz cm değerlerine göre hesaplanır.</span>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT PANEL: FORM -->
+  <div class="panel">
+    <div class="group">
+      <p class="section-title">Taban Genişliği</p>
+      <label for="baseWidth">Alt Taban Uzunluğu (cm)</label>
+      <input type="number" id="baseWidth" value="317" min="1" step="0.1" inputmode="decimal">
+    </div>
+
+    <div class="group">
+      <p class="section-title">Süpürgelik Yüksekliği</p>
+      <div class="radio-row" id="heightPresetRow">
+        <button class="tool active" data-h="8">8 cm</button>
+        <button class="tool" data-h="6">6 cm</button>
+      </div>
+      <label for="manualHeight">Manuel Giriş (cm)</label>
+      <input type="number" id="manualHeight" step="0.1" min="0.1" value="8" inputmode="decimal">
+    </div>
+
+    <div class="group">
+      <p class="section-title">Eğim Detayı</p>
+      <label for="refGap">Referans Taban Boşluğu (cm) — 8 cm yükseklik için</label>
+      <input type="number" id="refGap" value="3.7" min="0" step="0.01" inputmode="decimal">
+      <div class="info-box" id="bevelInfo" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="group">
+      <p class="section-title">Duvar / Kat Ekle <span id="tierCount" style="color:var(--muted); font-weight:400;"></span></p>
+      <div id="tierList"></div>
+      <button class="ghost" id="btnAddTier"><i class="fa-solid fa-plus"></i>  Duvar / Kat Ekle</button>
+      <p class="hint">Her katın <b>sol</b> ve <b>sağ</b> yüksekliği ayrı ayrı girilir — gerçekte iki taraf eşit olmak zorunda değildir. Üst genişlik, bir sonraki katın alt genişliği olur (ortadan hizalı).</p>
+    </div>
+
+    <button class="primary" id="btnCalc"><i class="fa-solid fa-calculator"></i>  Çiz ve Hesapla</button>
+  </div>
+
+  <!-- CENTER: CANVAS -->
+  <div>
+    <div class="canvas-outer">
+      <div class="canvas-wrap" id="canvasWrap">
+        <div class="status-chip" id="statusChip">Ölçüleri girip hesaplayın</div>
+        <canvas id="cnv"></canvas>
+        <div class="zoom-controls">
+          <button id="zoomIn"><i class="fa-solid fa-plus"></i></button>
+          <button id="zoomOut"><i class="fa-solid fa-minus"></i></button>
+          <button id="zoomReset" style="font-size:11px;">⟳</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="border:none;">
+      <p class="section-title">Şekil Özeti</p>
+      <div id="shapeSummary">
+        <div class="empty-msg">Parametreleri girip "Çiz ve Hesapla"ya basın.</div>
+      </div>
+      <p class="hint">Çizilen bir duvar segmentine <b>dokunarak/tıklayarak</b> uzunluğunu doğrudan değiştirebilirsiniz. İki parmakla yakınlaştırma/kaydırma, sağ alttaki +/− ve sıfırlama butonları da kullanılabilir.</p>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL: RESULTS -->
+  <div class="panel right">
+    <p class="section-title">Bileşik Gönye Sonuçları</p>
+    <div id="resultsArea">
+      <div class="empty-msg">Şekil hesaplandığında köşe açıları burada listelenir.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Edit segment modal -->
+<div class="modal-backdrop" id="editModal">
+  <div class="modal-card">
+    <h3 id="editModalTitle">Segment Uzunluğunu Düzenle</h3>
+    <p class="sub" id="editModalSub"></p>
+    <label for="editModalInput">Yeni Uzunluk (cm)</label>
+    <input type="number" id="editModalInput" step="0.1" min="0.1" inputmode="decimal">
+    <p class="modal-err" id="editModalErr"></p>
+    <div class="modal-actions">
+      <button class="cancel" id="editModalCancel">İptal</button>
+      <button class="apply" id="editModalApply">Uygula</button>
+    </div>
+  </div>
+</div>
+
+
+<script src="CssJS/pervaz.js"></script>
+</body>
+</html>
+
