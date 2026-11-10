@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Serbest 3B Çizim</title>
+<link rel="stylesheet" href="CssJS/serbest3b.css">
+
+</head>
+<body>
+<div id="app">
+<div id="panel">
+  <div class="top"><h1>Serbest 3B Çizim</h1><span id="st" class="hint"></span></div>
+  <div class="r"><button id="undo">↶ Geri</button><button id="redo">↷ İleri</button><button id="new">Yeni çizim</button></div>
+  <h2>Yeni parça</h2>
+  <div class="r"><select id="type"><option value="box">Kutu</option><option value="cyl">Silindir</option><option value="tri">Üçgen prizma</option><option value="hex">Altıgen prizma</option></select>
+  <button class="p" id="add">+ Ekle</button><button class="c" id="cut">− Delik / kes</button></div>
+  <div class="hint">Kes parçası, listede kendinden önceki parçalardan malzeme çıkarır. Kesen parçayı biraz uzun yap.</div>
+  <h2>Parçalar (dokun: seç)</h2><div class="r" id="list"></div>
+  <div id="ed"></div>
+  <h2>Ayarlar</h2>
+  <div class="r"><label>Yakalama <select id="snap"><option value="0">Serbest</option><option value="1">1</option><option value="5">5</option><option value="10">10</option></select></label>
+  <label>Birim <select id="unit"><option>cm</option><option>mm</option></select></label></div>
+  <div class="r"><label><input type="checkbox" id="wf" checked> Seçili çerçeve</label><label><input type="checkbox" id="dm" checked> Ölçü çizgileri</label></div>
+  <h2>Görünüm</h2>
+  <div class="r"><button data-v="iso">İzometrik</button><button data-v="front">Ön</button><button data-v="top">Üst</button><button data-v="side">Yan</button><button id="fit">Sığdır</button></div>
+</div>
+<div id="view"><canvas id="c"></canvas>
+  <div id="tb"><button data-m="cam" class="on">Kamera</button><button data-m="rot">Döndür</button><button data-m="move">Taşı</button><button data-m="movey">Yükseklik</button><button data-m="meas">Cetvel</button><button id="mclr" style="display:none">Ölçüyü sil</button></div>
+  <div id="info"></div></div>
+</div>
+
+<script src="CssJS/serbest3b.js"></script>
+</body>
+</html>
+
